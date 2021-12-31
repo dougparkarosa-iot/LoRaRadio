@@ -1,4 +1,6 @@
-# Arduino LoRa
+# Doug's Arduino LoRa Fork
+This fork is based on the sandeepmistry/arduino-LoRa. It is intended to add modifications necessary to support SNBPL. 
+# SandeepMistry - Arduino LoRa
 
 [![Build Status](https://travis-ci.org/sandeepmistry/arduino-LoRa.svg?branch=master)](https://travis-ci.org/sandeepmistry/arduino-LoRa)
 

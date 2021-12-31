@@ -1,0 +1,21 @@
+{
+  "name": "LoRaRadio",
+  "version": "0.0.1",
+  "description": "Library to control the LoRa Radio, based on Sandeep Mistry's library.",
+  "keywords": [
+    "LoRa",
+    "communication",
+    "IoT"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dougparkarosa/LoRaRadio.git"
+  },
+  "authors": [
+    {
+      "name": "Doug Park",
+      "email": "dougparkarosa@gmail.com"
+    }
+  ],
+  "dependencies": []
+}
