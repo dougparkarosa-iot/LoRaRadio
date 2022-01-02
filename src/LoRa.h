@@ -8,7 +8,10 @@
 #include <Arduino.h>
 #include <SPI.h>
 
+#define USE_FUNCTIONAL 1
+#if USE_FUNCTIONAL
 #include <functional>
+#endif
 
 #if defined(ARDUINO_SAMD_MKRWAN1300)
 #define LORA_DEFAULT_SPI SPI1
@@ -35,8 +38,13 @@
 
 class LoRaClass : public Stream {
 public:
+#if USE_FUNCTIONAL
   using RXFunction = std::function<void(int)>;
   using TXFunction = std::function<void()>;
+#else
+  using RXFunction = void (*)(int);
+  using TXFunction = void (*)();
+#endif
 
   LoRaClass();
 
