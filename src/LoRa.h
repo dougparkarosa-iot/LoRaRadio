@@ -39,11 +39,13 @@
 class LoRaClass : public Stream {
 public:
 #if USE_FUNCTIONAL
-  using RXFunction = std::function<void(int)>;
-  using TXFunction = std::function<void()>;
+  using RxFunction = std::function<void(int)>;
+  using TxFunction = std::function<void()>;
+  using CadFunction = std::function<void(boolean)>;
 #else
-  using RXFunction = void (*)(int);
-  using TXFunction = void (*)();
+  using RxFunction = void (*)(int);
+  using TxFunction = void (*)();
+  using CadFunction = void (*)(boolean);
 #endif
 
   LoRaClass();
@@ -72,8 +74,9 @@ public:
   virtual void flush();
 
 #ifndef ARDUINO_SAMD_MKRWAN1300
-  void onReceive(RXFunction callback);
-  void onTxDone(TXFunction callback);
+  void onReceive(RxFunction callback);
+  void onTxDone(TxFunction callback);
+  void onCadDone(CadFunction callback);
 
   void receive(int size = 0);
 #endif
@@ -91,6 +94,7 @@ public:
   void disableCrc();
   void enableInvertIQ();
   void disableInvertIQ();
+  void detectChannelActivity(void);
 
   void setOCP(uint8_t mA); // Over Current Protection control
 
@@ -137,8 +141,9 @@ private:
   long _frequency;
   int _packetIndex;
   int _implicitHeaderMode;
-  RXFunction _onReceive;
-  TXFunction _onTxDone;
+  RxFunction _onReceive;
+  TxFunction _onTxDone;
+  CadFunction _onCadDone;
 };
 
 extern LoRaClass LoRa;

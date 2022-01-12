@@ -44,6 +44,12 @@
 #define REG_PA_DAC 0x4d
 #define REG_AGC_Thresh3L_F 0x64
 
+// DIO0 mapping Bits 7-6 of REG_DIO_MAPPING_1.
+// Table 18
+#define DIO0_RX_DONE 0x00  // RxDone  00 000000
+#define DIO0_TX_DONE 0x40  // TDone   01 000000
+#define DIO0_CAD_DONE 0x80 // CadDone 10 000000
+
 // modes
 #define MODE_LONG_RANGE_MODE 0x80
 #define MODE_SLEEP 0x00
@@ -51,6 +57,7 @@
 #define MODE_TX 0x03
 #define MODE_RX_CONTINUOUS 0x05
 #define MODE_RX_SINGLE 0x06
+#define MODE_CAD 0x07
 
 // PA config
 #define PA_BOOST 0x80
@@ -187,7 +194,7 @@ int LoRaClass::beginPacket(int implicitHeader) {
 int LoRaClass::endPacket(bool async) {
 
   if ((async) && (_onTxDone))
-    writeRegister(REG_DIO_MAPPING_1, 0x40); // DIO0 => TXDONE
+    writeRegister(REG_DIO_MAPPING_1, DIO0_TX_DONE); // DIO0 => TXDONE
 
   // put in TX mode
   writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_TX);
@@ -354,7 +361,7 @@ int LoRaClass::peek() {
 void LoRaClass::flush() {}
 
 #ifndef ARDUINO_SAMD_MKRWAN1300
-void LoRaClass::onReceive(RXFunction callback) {
+void LoRaClass::onReceive(RxFunction callback) {
   _onReceive = callback;
 
   if (callback) {
@@ -372,7 +379,7 @@ void LoRaClass::onReceive(RXFunction callback) {
   }
 }
 
-void LoRaClass::onTxDone(TXFunction callback) {
+void LoRaClass::onTxDone(TxFunction callback) {
   _onTxDone = callback;
 
   if (callback) {
@@ -390,9 +397,32 @@ void LoRaClass::onTxDone(TXFunction callback) {
   }
 }
 
+void LoRaClass::onCadDone(CadFunction callback) {
+  _onCadDone = callback;
+
+  if (callback) {
+    pinMode(_dio0, INPUT);
+#ifdef SPI_HAS_NOTUSINGINTERRUPT
+    SPI.usingInterrupt(digitalPinToInterrupt(_dio0));
+#endif
+    attachInterrupt(digitalPinToInterrupt(_dio0), LoRaClass::onDio0Rise,
+                    RISING);
+  } else {
+    detachInterrupt(digitalPinToInterrupt(_dio0));
+#ifdef SPI_HAS_NOTUSINGINTERRUPT
+    SPI.notUsingInterrupt(digitalPinToInterrupt(_dio0));
+#endif
+  }
+}
+
+void LoRaClass::detectChannelActivity(void) {
+  writeRegister(REG_DIO_MAPPING_1, DIO0_CAD_DONE); // DIO0 => CADDONE
+  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_CAD);
+}
+
 void LoRaClass::receive(int size) {
 
-  writeRegister(REG_DIO_MAPPING_1, 0x00); // DIO0 => RXDONE
+  writeRegister(REG_DIO_MAPPING_1, DIO0_RX_DONE); // DIO0 => RXDONE
 
   if (size > 0) {
     implicitHeaderMode();
@@ -713,7 +743,11 @@ void LoRaClass::handleDio0Rise() {
   // Writing a 1 clears the flag in the hardware.
   writeRegister(REG_IRQ_FLAGS, irqFlags);
 
-  if ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0) {
+  if ((irqFlags & IRQ_CAD_DONE_MASK) != 0) {
+    if (_onCadDone) {
+      _onCadDone((irqFlags & IRQ_CAD_DETECTED_MASK) != 0);
+    }
+  } else if ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0) {
 
     if ((irqFlags & IRQ_RX_DONE_MASK) != 0) {
       // received a packet
