@@ -415,6 +415,23 @@ void LoRaClass::onCadDone(CadFunction callback) {
   }
 }
 
+void LoRaClass::onFhssChange(FhssChangeFunction callback) {
+  _onFhssChange = callback;
+  if (callback) {
+    pinMode(_dio0, INPUT);
+#ifdef SPI_HAS_NOTUSINGINTERRUPT
+    SPI.usingInterrupt(digitalPinToInterrupt(_dio0));
+#endif
+    attachInterrupt(digitalPinToInterrupt(_dio0), LoRaClass::onDio0Rise,
+                    RISING);
+  } else {
+    detachInterrupt(digitalPinToInterrupt(_dio0));
+#ifdef SPI_HAS_NOTUSINGINTERRUPT
+    SPI.notUsingInterrupt(digitalPinToInterrupt(_dio0));
+#endif
+  }
+}
+
 void LoRaClass::detectChannelActivity(void) {
   writeRegister(REG_DIO_MAPPING_1, DIO0_CAD_DONE); // DIO0 => CADDONE
   writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_CAD);
@@ -743,6 +760,11 @@ void LoRaClass::handleDio0Rise() {
   // Writing a 1 clears the flag in the hardware.
   writeRegister(REG_IRQ_FLAGS, irqFlags);
 
+  if ((irqFlags & IRQ_FHSS_CHANGE_CH_MASK) != 0) {
+    if (_onFhssChange) {
+      _onFhssChange();
+    }
+  }
   if ((irqFlags & IRQ_CAD_DONE_MASK) != 0) {
     if (_onCadDone) {
       _onCadDone((irqFlags & IRQ_CAD_DETECTED_MASK) != 0);

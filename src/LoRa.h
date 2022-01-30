@@ -42,10 +42,12 @@ public:
   using RxFunction = std::function<void(int)>;
   using TxFunction = std::function<void()>;
   using CadFunction = std::function<void(boolean)>;
+  using FhssChangeFunction = std::function<void()>;
 #else
   using RxFunction = void (*)(int);
   using TxFunction = void (*)();
   using CadFunction = void (*)(boolean);
+  using FhssChangeFunction = void (*)();
 #endif
 
   LoRaClass();
@@ -77,6 +79,7 @@ public:
   void onReceive(RxFunction callback);
   void onTxDone(TxFunction callback);
   void onCadDone(CadFunction callback);
+  void onFhssChange(FhssChangeFunction callback);
 
   void receive(int size = 0);
 #endif
@@ -144,6 +147,7 @@ private:
   RxFunction _onReceive;
   TxFunction _onTxDone;
   CadFunction _onCadDone;
+  FhssChangeFunction _onFhssChange;
 };
 
 extern LoRaClass LoRa;
