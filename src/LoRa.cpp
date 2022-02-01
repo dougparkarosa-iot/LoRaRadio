@@ -184,7 +184,7 @@ int LoRaClass::beginPacket(int implicitHeader) {
     explicitHeaderMode();
   }
 
-  // reset FIFO address and paload length
+  // reset FIFO address and payload length
   writeRegister(REG_FIFO_ADDR_PTR, 0);
   writeRegister(REG_PAYLOAD_LENGTH, 0);
 
