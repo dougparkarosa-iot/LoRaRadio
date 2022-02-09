@@ -4,6 +4,11 @@
 
 #include <LoRa.h>
 
+/// Notes:
+/// LNA - Low Noise Amplifier
+/// AGC - Automatic Gain Control
+/// LO - Local Oscillator
+
 // registers
 #define REG_FIFO 0x00
 #define REG_OP_MODE 0x01
@@ -509,6 +514,15 @@ void LoRaClass::setFrequency(long frequency) {
   errataCheck();
 }
 
+long LoRaClass::getFrequency() const {
+  auto lsb = readRegister(REG_FRF_LSB);
+  auto mid = readRegister(REG_FRF_MID);
+  auto msb = readRegister(REG_FRF_MSB);
+
+  uint64_t frf = msb << 16 | mid << 8 | lsb;
+  return frf * 32000000 >> 19;
+}
+
 int LoRaClass::getSpreadingFactor() {
   return readRegister(REG_MODEM_CONFIG_2) >> 4;
 }
@@ -793,7 +807,7 @@ void LoRaClass::handleDio0Rise() {
   }
 }
 
-uint8_t LoRaClass::readRegister(uint8_t address) {
+uint8_t LoRaClass::readRegister(uint8_t address) const {
   return singleTransfer(address & 0x7f, 0x00);
 }
 
@@ -801,7 +815,7 @@ void LoRaClass::writeRegister(uint8_t address, uint8_t value) {
   singleTransfer(address | 0x80, value);
 }
 
-uint8_t LoRaClass::singleTransfer(uint8_t address, uint8_t value) {
+uint8_t LoRaClass::singleTransfer(uint8_t address, uint8_t value) const {
   uint8_t response;
 
   digitalWrite(_ss, LOW);
