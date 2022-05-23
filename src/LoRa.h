@@ -36,26 +36,58 @@
 #define PA_OUTPUT_RFO_PIN 0
 #define PA_OUTPUT_PA_BOOST_PIN 1
 
+/// \brief Cloned LoRaClass from Sandeep Mistry
+///
+/// Clone is here to allow changes as needed.
+///
+/// Callback structure uses std::function.
 class LoRaClass : public Stream {
 public:
 #if USE_FUNCTIONAL
-  using RxFunction = std::function<void(int)>;
-  using TxFunction = std::function<void()>;
-  using CadFunction = std::function<void(boolean)>;
-  using FhssChangeFunction = std::function<void()>;
+  using RxFunction = std::function<void(int)>; ///< Callback type for receive
+  using TxFunction = std::function<void()>;    ///< Callback type for transmit
+  using CadFunction = std::function<void(
+      boolean)>; ///< Callback type for Channel Activity Detect (CAD)
+  using FhssChangeFunction =
+      std::function<void()>; ///< Callback type for FhssChange
 #else
-  using RxFunction = void (*)(int);
-  using TxFunction = void (*)();
-  using CadFunction = void (*)(boolean);
-  using FhssChangeFunction = void (*)();
+  using RxFunction = void (*)(int); ///< Callback type for receive
+  using TxFunction = void (*)();    ///< Callback type for transmit
+  using CadFunction =
+      void (*)(boolean); ///< Callback type for Channel Activity Detect (CAD)
+  using FhssChangeFunction = void (*)(); ///< Callback type for FhssChange
 #endif
 
+  /// Constructor
   LoRaClass();
 
+  /// Connect to LoRa hardware using the input frequency
+  ///
+  /// \param frequency Frequency One of (433000000L, 868000000L, 915000000L).
+  ///
+  /// \return 1 if successful 0 otherwise
   int begin(long frequency);
+
+  /// Shut down the radio
   void end();
 
+  /// Start the sequence of sending a packet.
+  ///
+  /// \param implicitHeader (optional) true enables implicit header mode,
+  /// `false` enables explicit header mode (default) \return 1 if radio is ready
+  /// to transmit, 0 if busy or on failure.
   int beginPacket(int implicitHeader = false);
+
+  /// End the sequence of sending a packet.
+  ///
+  /// \code
+  /// LoRa.endPacket();
+  /// LoRa.endPacket(async);
+  /// \endcode
+  ///
+  /// \param async (optional) true enables non-blocking mode, false waits
+  /// for transmission to be completed (default) \return 1 on success, 0 on
+  /// failure.
   int endPacket(bool async = false);
 
   int parsePacket(int size = 0);
