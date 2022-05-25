@@ -160,6 +160,12 @@ public:
 
   void setGain(uint8_t gain); // Set LNA gain
 
+  /// Generate a random byte, based on the Wideband RSSI measurement.
+  ///
+  /// \code
+  /// byte b = LoRa.random();
+  /// \endcode
+  /// \return random byte.
   byte random();
 
   void setPins(int ss = LORA_DEFAULT_SS_PIN, int reset = LORA_DEFAULT_RESET_PIN,

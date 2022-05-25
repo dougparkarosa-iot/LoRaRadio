@@ -993,10 +993,21 @@ void LoRaClass::setPins(int ss, int reset, int dio0) {
 /// has more than one SPI interface present.
 void LoRaClass::setSPI(SPIClass &spi) { _spi = &spi; }
 
+/// Override the default SPI frequency of 10 MHz used by the library. **Must**
+/// be called before LoRa.begin(). \code LoRa.setSPIFrequency(frequency);
+/// \endcode
+/// \param frequency new SPI frequency to use, defaults to 8000000
+/// This call is optional and only needs to be used if you need to change the
+/// default SPI frequency /// used. Some logic level converters cannot support
+/// high speeds such as 8 MHz, so a lower SPI frequency can be selected with
+/// `LoRa.setSPIFrequency(frequency)`.
 void LoRaClass::setSPIFrequency(uint32_t frequency) {
   _spiSettings = SPISettings(frequency, MSBFIRST, SPI_MODE0);
 }
 
+/// Output the values of the registers in the LoRa hardware
+/// This is useful for debugging purposes.
+/// \param out Stream to send output to
 void LoRaClass::dumpRegisters(Stream &out) {
   for (int i = 0; i < 128; i++) {
     out.print("0x");
