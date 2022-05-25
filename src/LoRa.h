@@ -45,6 +45,7 @@ class LoRaClass : public Stream {
 public:
 #if USE_FUNCTIONAL
   using RxFunction = std::function<void(int)>; ///< Callback type for receive
+                                               ///< argument is packetSize
   using TxFunction = std::function<void()>;    ///< Callback type for transmit
   using CadFunction = std::function<void(
       boolean)>; ///< Callback type for Channel Activity Detect (CAD)
@@ -68,77 +69,96 @@ public:
   /// \return 1 if successful 0 otherwise
   int begin(long frequency);
 
-  /// Shut down the radio
   void end();
 
-  /// Start the sequence of sending a packet.
-  ///
-  /// \param implicitHeader (optional) true enables implicit header mode,
-  /// `false` enables explicit header mode (default) \return 1 if radio is ready
-  /// to transmit, 0 if busy or on failure.
   int beginPacket(int implicitHeader = false);
 
-  /// End the sequence of sending a packet.
-  ///
-  /// \code
-  /// LoRa.endPacket();
-  /// LoRa.endPacket(async);
-  /// \endcode
-  ///
-  /// \param async (optional) true enables non-blocking mode, false waits
-  /// for transmission to be completed (default) \return 1 on success, 0 on
-  /// failure.
   int endPacket(bool async = false);
-
   int parsePacket(int size = 0);
+
   int packetRssi();
+
   float packetSnr();
+
   long packetFrequencyError();
 
   int rssi();
 
   // from Print
+
   virtual size_t write(uint8_t byte);
+
   virtual size_t write(const uint8_t *buffer, size_t size);
 
   // from Stream
-  virtual int available();
-  virtual int read();
-  virtual int peek();
-  virtual void flush();
+
+  int available() override;
+
+  int read() override;
+
+  int peek() override;
+
+  void flush() override;
 
 #ifndef ARDUINO_SAMD_MKRWAN1300
   void onReceive(RxFunction callback);
   void onTxDone(TxFunction callback);
   void onCadDone(CadFunction callback);
+
   void onFhssChange(FhssChangeFunction callback);
 
   void receive(int size = 0);
 #endif
+
   void idle();
+
   void sleep();
 
   void setTxPower(int level, int outputPin = PA_OUTPUT_PA_BOOST_PIN);
+
   void setFrequency(long frequency);
+
   long getFrequency() const;
+
   void setSpreadingFactor(int sf);
+
   void setSignalBandwidth(long sbw);
+
   void setCodingRate4(int denominator);
+
   void setPreambleLength(long length);
+
   void setSyncWord(int sw);
+
+  /// @{
+  /// Enable or disable CRC usage, by default a CRC is not used.
+  /// \code
+  /// LoRa.enableCrc();
+  ///
+  /// LoRa.disableCrc();
+  /// \endcode
   void enableCrc();
   void disableCrc();
+  /// @}
+
+  /// @{
+  /// Enable or disable Invert the LoRa I and Q signals, by default a invertIQ
+  /// is not used.
+  ///
+  /// \code
+  /// LoRa.enableInvertIQ();
+  ///
+  /// LoRa.disableInvertIQ();
+  /// \endcode
   void enableInvertIQ();
   void disableInvertIQ();
+  /// @}
+
   void detectChannelActivity(void);
 
   void setOCP(uint8_t mA); // Over Current Protection control
 
   void setGain(uint8_t gain); // Set LNA gain
-
-  // deprecated
-  void crc() { enableCrc(); }
-  void noCrc() { disableCrc(); }
 
   byte random();
 
