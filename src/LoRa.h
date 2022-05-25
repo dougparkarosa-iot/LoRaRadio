@@ -142,8 +142,8 @@ public:
   /// @}
 
   /// @{
-  /// Enable or disable Invert the LoRa I and Q signals, by default a invertIQ
-  /// is not used.
+  /// Enable or disable Invert the LoRa “in-phase” and “quadrature” (I and Q)
+  /// signals, by default a invertIQ is not used.
   ///
   /// \code
   /// LoRa.enableInvertIQ();

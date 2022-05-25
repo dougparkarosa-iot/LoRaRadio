@@ -95,7 +95,7 @@ LoRaClass::LoRaClass()
       _reset(LORA_DEFAULT_RESET_PIN), _dio0(LORA_DEFAULT_DIO0_PIN),
       _frequency(0), _packetIndex(0), _implicitHeaderMode(0), _onReceive(NULL),
       _onTxDone(NULL) {
-  // overide Stream timeout value
+  // override Stream timeout value
   setTimeout(0);
 }
 
@@ -959,7 +959,7 @@ void LoRaClass::setGain(uint8_t gain) {
 ///
 /// \code
 /// byte b = LoRa.random();
-/// \endcodde
+/// \endcode
 /// \return random byte.
 byte LoRaClass::random() { return readRegister(REG_RSSI_WIDEBAND); }
 
