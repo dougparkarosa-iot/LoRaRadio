@@ -1,5 +1,5 @@
 # Doug's Arduino LoRa Fork
-This fork is based on the sandeepmistry/arduino-LoRa. It is intended to add modifications necessary to support SNBPL. 
+This fork is based on the sandeepmistry/arduino-LoRa. It is intended to add modifications necessary to support SBNPL. 
 # SandeepMistry - Arduino LoRa
 
 [![Build Status](https://travis-ci.org/sandeepmistry/arduino-LoRa.svg?branch=master)](https://travis-ci.org/sandeepmistry/arduino-LoRa)
@@ -19,15 +19,15 @@ An [Arduino](https://arduino.cc/) library for sending and receiving data using [
 ### Semtech SX1276/77/78/79 wiring
 
 | Semtech SX1276/77/78/79 | Arduino |
-| :---------------------: | :------:|
-| VCC | 3.3V |
-| GND | GND |
-| SCK | SCK |
-| MISO | MISO |
-| MOSI | MOSI |
-| NSS | 10 |
-| NRESET | 9 |
-| DIO0 | 2 |
+| :---------------------: | :-----: |
+|           VCC           |  3.3V   |
+|           GND           |   GND   |
+|           SCK           |   SCK   |
+|          MISO           |  MISO   |
+|          MOSI           |  MOSI   |
+|           NSS           |   10    |
+|         NRESET          |    9    |
+|          DIO0           |    2    |
 
 
 `NSS`, `NRESET`, and `DIO0` pins can be changed by using `LoRa.setPins(ss, reset, dio0)`. `DIO0` pin is optional, it is only needed for receive callback mode. If `DIO0` pin is used, it **must** be interrupt capable via [`attachInterrupt(...)`](https://www.arduino.cc/en/Reference/AttachInterrupt).
