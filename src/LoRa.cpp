@@ -232,6 +232,8 @@ int LoRaClass::endPacket(bool async) {
   return 1;
 }
 
+/// Check to see if radio is busy transmitting.
+/// \return true if transmitting false otherwise.
 bool LoRaClass::isTransmitting() {
   if ((readRegister(REG_OP_MODE) & MODE_TX) == MODE_TX) {
     return true;
