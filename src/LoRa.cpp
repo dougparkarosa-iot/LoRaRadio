@@ -188,6 +188,7 @@ int LoRaClass::beginPacket(int implicitHeader) {
   }
 
   // put in standby mode
+  // Must be in standby mode to write to FIFO buffer.
   idle();
 
   if (implicitHeader) {
@@ -211,7 +212,8 @@ int LoRaClass::beginPacket(int implicitHeader) {
 /// \endcode
 ///
 /// \param async (optional) true enables non-blocking mode, false waits
-/// for transmission to be completed (default) \return 1 on success, 0 on
+/// for transmission to be completed (default)
+/// \return 1 on success, 0 on
 /// failure.
 int LoRaClass::endPacket(bool async) {
 
@@ -224,7 +226,7 @@ int LoRaClass::endPacket(bool async) {
   if (!async) {
     // wait for TX done
     while ((readRegister(REG_IRQ_FLAGS) & IRQ_TX_DONE_MASK) == 0) {
-      yield();
+      yield(); // equivalent to vPortYield() on ESP32.
     }
     // clear IRQ's
     writeRegister(REG_IRQ_FLAGS, IRQ_TX_DONE_MASK);
@@ -236,16 +238,32 @@ int LoRaClass::endPacket(bool async) {
 /// Check to see if radio is busy transmitting.
 /// \return true if transmitting false otherwise.
 bool LoRaClass::isTransmitting() {
+  // When in TX mode transmission continues until done then
+  // automatically drops to stand by mode after firing off
+  // the TX Done interrupt.
   if ((readRegister(REG_OP_MODE) & MODE_TX) == MODE_TX) {
     return true;
   }
 
+  // If we got here then we are not in transmit mode.
+  // handleDio0Rise should clear this if it is hooked.
+  // endPacket() clears this in the non async mode, so this
+  // seems like it isn't necessary.
+  //
+  // It is safe to clear this now.
+  // Clear the TX Done interrupt request flag.
   if (readRegister(REG_IRQ_FLAGS) & IRQ_TX_DONE_MASK) {
-    // clear IRQ's
+    // clear IRQ
     writeRegister(REG_IRQ_FLAGS, IRQ_TX_DONE_MASK);
   }
 
   return false;
+}
+
+/// Check to see if in Receive (RX) mode
+/// \return true if in RX mode false otherwise.
+bool LoRaClass::isInRXMode() {
+  return readRegister(REG_OP_MODE) == (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE);
 }
 
 /// Check if a packet has been received.
@@ -288,8 +306,7 @@ int LoRaClass::parsePacket(int size) {
 
     // put in standby mode
     idle();
-  } else if (readRegister(REG_OP_MODE) !=
-             (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE)) {
+  } else if (!isInRXMode()) {
     // not currently in RX mode
 
     // reset FIFO address
@@ -605,6 +622,12 @@ void LoRaClass::receive(int size) {
 /// \endcode
 void LoRaClass::idle() {
   writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_STDBY);
+}
+
+/// Check to see if radio is in idle mode.
+/// \return true if in idle mode, false otherwise.
+bool LoRaClass::isIdle() {
+  return (readRegister(REG_OP_MODE) == (MODE_LONG_RANGE_MODE | MODE_STDBY));
 }
 
 /// Put the radio in sleep mode.

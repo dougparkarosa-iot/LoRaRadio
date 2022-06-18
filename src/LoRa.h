@@ -175,6 +175,8 @@ public:
 
   void dumpRegisters(Stream &out);
   bool isTransmitting();
+  bool isInRXMode();
+  bool isIdle();
 
 private:
   void errataCheck();
