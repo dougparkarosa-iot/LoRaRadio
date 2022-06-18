@@ -179,7 +179,8 @@ void LoRaClass::end() {
 /// Start the sequence of sending a packet.
 ///
 /// \param implicitHeader (optional) true enables implicit header mode,
-/// `false` enables explicit header mode (default) \return 1 if radio is ready
+/// `false` enables explicit header mode (default)
+/// \return 1 if radio is ready
 /// to transmit, 0 if busy or on failure.
 int LoRaClass::beginPacket(int implicitHeader) {
   if (isTransmitting()) {
