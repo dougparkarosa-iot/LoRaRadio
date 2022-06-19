@@ -2,6 +2,8 @@
   "cSpell.words": [
     "CADDONE",
     "Fhss",
+    "FSRX",
+    "FSTX",
     "FXOSC",
     "INVERTIQ",
     "Mistry",
@@ -10,7 +12,9 @@
     "NOTUSINGINTERRUPT",
     "NRESET",
     "RSSI",
+    "RXCONTINUOUS",
     "RXDONE",
+    "RXSINGLE",
     "SAMD",
     "Sandeep",
     "Semtech",
