@@ -63,6 +63,7 @@
 #define MODE_RX_CONTINUOUS 0x05
 #define MODE_RX_SINGLE 0x06
 #define MODE_CAD 0x07
+#define MODE_MASK 0x07
 
 // PA config
 #define PA_BOOST 0x80
@@ -217,11 +218,12 @@ int LoRaClass::beginPacket(int implicitHeader) {
 /// failure.
 int LoRaClass::endPacket(bool async) {
 
-  if ((async) && (_onTxDone))
+  if ((async) && (_onTxDone)) {
     writeRegister(REG_DIO_MAPPING_1, DIO0_TX_DONE); // DIO0 => TXDONE
-
+  }
   // put in TX mode
-  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_TX);
+  // writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_TX);
+  setMode(DeviceMode::TX);
 
   if (!async) {
     // wait for TX done
@@ -233,6 +235,20 @@ int LoRaClass::endPacket(bool async) {
   }
 
   return 1;
+}
+
+/// Set current device mode
+/// \param mode Mode to select
+void LoRaClass::setMode(DeviceMode mode) {
+  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | mode);
+  // Mode change takes a few micro seconds.
+  delay(1);
+}
+
+/// Get current device mode
+/// \return the current device mode.
+LoRaClass::DeviceMode LoRaClass::getMode() const {
+  return static_cast<DeviceMode>(readRegister(REG_OP_MODE) & MODE_MASK);
 }
 
 /// Check to see if radio is busy transmitting.
@@ -308,12 +324,7 @@ int LoRaClass::parsePacket(int size) {
     idle();
   } else if (!isInRXMode()) {
     // not currently in RX mode
-
-    // reset FIFO address
-    writeRegister(REG_FIFO_ADDR_PTR, 0);
-
-    // put in single RX mode
-    writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_SINGLE);
+    singleReceive();
   }
 
   return packetLength;
@@ -591,6 +602,7 @@ void LoRaClass::detectChannelActivity(void) {
   writeRegister(REG_DIO_MAPPING_1, DIO0_CAD_DONE); // DIO0 => CADDONE
   writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_CAD);
 }
+#endif // ARDUINO_SAMD_MKRWAN1300
 
 /// Puts the radio in continuous receive mode.
 /// \code
@@ -614,30 +626,37 @@ void LoRaClass::receive(int size) {
 
   writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_CONTINUOUS);
 }
-#endif
+
+void LoRaClass::singleReceive() {
+  // reset FIFO address
+  writeRegister(REG_FIFO_ADDR_PTR, 0);
+
+  // put in single RX mode
+  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_SINGLE);
+  // Mode changes take a few micro seconds.
+  delay(1);
+}
 
 /// Put the radio in idle (standby) mode.
 /// \code
 /// LoRa.idle();
 /// \endcode
-void LoRaClass::idle() {
-  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_STDBY);
-}
+void LoRaClass::idle() { setMode(DeviceMode::STDBY); }
 
 /// Check to see if radio is in idle mode.
 /// \return true if in idle mode, false otherwise.
-bool LoRaClass::isIdle() {
-  return (readRegister(REG_OP_MODE) == (MODE_LONG_RANGE_MODE | MODE_STDBY));
-}
+bool LoRaClass::isIdle() { return getMode() == DeviceMode::STDBY; }
 
 /// Put the radio in sleep mode.
 /// \todo explain what sleep mode does...
 /// \code
 /// LoRa.sleep();
 /// \endcode
-void LoRaClass::sleep() {
-  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_SLEEP);
-}
+void LoRaClass::sleep() { setMode(DeviceMode::SLEEP); }
+
+/// Check to see if radio is in sleep (low power) mode.
+/// \return true if asleep false otherwise.
+bool LoRaClass::isAsleep() { return getMode() == DeviceMode::SLEEP; }
 
 /// Change the TX power of the radio.
 ///

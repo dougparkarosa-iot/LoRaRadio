@@ -59,6 +59,18 @@ public:
   using FhssChangeFunction = void (*)(); ///< Callback type for FhssChange
 #endif
 
+  /// Device modes
+  enum DeviceMode {
+    SLEEP,        ///< Sleep (low power) mode
+    STDBY,        ///< Standby mode
+    FSTX,         ///< Frequency synthesis TX
+    TX,           ///< Transmit
+    FSRX,         ///< Frequency synthesis RX
+    RXCONTINUOUS, ///< Receive continuous
+    RXSINGLE,     ///< Receive single
+    CAD           ///< Channel activity detection
+  };
+
   /// Constructor
   LoRaClass();
 
@@ -106,13 +118,18 @@ public:
   void onCadDone(CadFunction callback);
 
   void onFhssChange(FhssChangeFunction callback);
+#endif
+
+  void setMode(DeviceMode mode);
+  DeviceMode getMode() const;
 
   void receive(int size = 0);
-#endif
+  void singleReceive();
 
   void idle();
 
   void sleep();
+  bool isAsleep();
 
   void setTxPower(int level, int outputPin = PA_OUTPUT_PA_BOOST_PIN);
 
