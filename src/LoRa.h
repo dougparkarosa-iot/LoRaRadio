@@ -87,6 +87,9 @@ public:
 
   int endPacket(bool async = false);
 
+  void setRxTimeout(int timeout = 0x64);
+  int getRxTimeout();
+
   int parsePacket(int size = 0);
   int packetRssi();
 
@@ -187,6 +190,7 @@ public:
   void setSPIFrequency(uint32_t frequency);
 
   void dumpRegisters(Stream &out);
+  uint8_t readRegister(uint8_t address);
 
   bool isTransmitting();
 
@@ -202,7 +206,6 @@ private:
 
   void setLdoFlag();
 
-  uint8_t readRegister(uint8_t address);
   void writeRegister(uint8_t address, uint8_t value);
   uint8_t singleTransfer(uint8_t address, uint8_t value);
 

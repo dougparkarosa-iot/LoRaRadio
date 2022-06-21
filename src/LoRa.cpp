@@ -29,6 +29,8 @@
 #define REG_RSSI_VALUE 0x1b
 #define REG_MODEM_CONFIG_1 0x1d
 #define REG_MODEM_CONFIG_2 0x1e
+#define REG_SYMB_TIMEOUT_MSG_MASK 0x3
+#define REG_SYMB_TIMEOUT_LSB 0x1f // MSB in REG_MODEM_CONFIG_2 bits 1-0
 #define REG_PREAMBLE_MSB 0x20
 #define REG_PREAMBLE_LSB 0x21
 #define REG_PAYLOAD_LENGTH 0x22
@@ -174,8 +176,54 @@ void LoRaClass::end() {
   // put in sleep mode
   sleep();
 
+  // unhook interrupts.
+  _onTxDone = nullptr;
+  _onReceive = nullptr;
+
+  detachInterrupt(digitalPinToInterrupt(_dio0));
+#ifdef SPI_HAS_NOTUSINGINTERRUPT
+  SPI.notUsingInterrupt(digitalPinToInterrupt(_dio0));
+#endif
+
   // stop SPI
   _spi->end();
+}
+
+/// Set the receive timeout.
+/// From the SX1276/77/78/79 datasheet:
+/// > In this mode, the modem searches for a preamble during a given period of
+/// > time. If a preamble hasn’t been found at the end of the time window, the
+/// > chip generates the RxTimeout interrupt and goes back to Standby mode. The
+/// > length of the reception window (in symbols) is defined by the
+/// > RegSymbTimeout register and should be in the range of 4 (minimum time for
+/// > the modem to acquire lock on a preamble) up to 1023 symbols.
+///
+/// \param timeout value in the range 4 to 1023 symbols. Default ix 0x64 (100).
+void LoRaClass::setRxTimeout(int timeout) {
+  if (timeout < 4) {
+    timeout = 4;
+  }
+  if (timeout > 1023) {
+    timeout = 1023;
+  }
+  uint8_t msb = REG_SYMB_TIMEOUT_MSG_MASK & (timeout >> 8);
+  uint8_t lsb = timeout & 0xff;
+
+  // Set msb into modem config 2 bits 0-1 retaining the higher order
+  // bits already there.
+  auto mConfig2 = readRegister(REG_MODEM_CONFIG_2) & ~REG_SYMB_TIMEOUT_MSG_MASK;
+  writeRegister(REG_MODEM_CONFIG_2, mConfig2 | (msb));
+
+  // Set lsb bits. Most often this should be all that changes.
+  writeRegister(REG_SYMB_TIMEOUT_LSB, lsb);
+}
+
+/// Get the current RxTimeout
+/// \return receive timeout in symbols in the range 4-1023.
+int LoRaClass::getRxTimeout() {
+  auto msb = readRegister(REG_MODEM_CONFIG_2) & REG_SYMB_TIMEOUT_MSG_MASK;
+  auto lsb = readRegister(REG_SYMB_TIMEOUT_LSB);
+  return (msb << 8) | lsb;
 }
 
 /// Start the sequence of sending a packet.
@@ -287,6 +335,8 @@ bool LoRaClass::isTransmitting() {
 ///  \return  the packet size in bytes or 0 if no packet was received.
 int LoRaClass::parsePacket(int size) {
   int packetLength = 0;
+
+  // Pick up IRQ flags for later use.
   int irqFlags = readRegister(REG_IRQ_FLAGS);
 
   if (size > 0) {
@@ -297,11 +347,36 @@ int LoRaClass::parsePacket(int size) {
     explicitHeaderMode();
   }
 
+  // From datasheet
+  // In order to retrieve received data from FIFO the user must ensure that
+  // ValidHeader, PayloadCrcError, RxDone and RxTimeout interrupts in the status
+  // register RegIrqFlags are not asserted to ensure that packet reception has
+  // terminated successfully (i.e. no flags should be set).
+  //
+  // In case of errors the steps below should be skipped and the packet
+  // discarded. In order to retrieve valid received data from
+  // the FIFO the user must:
+  //   * RegRxNbBytes Indicates the number of bytes that have been received thus
+  //     far.
+  //   * RegFifoAddrPtr is a dynamic pointer that indicates precisely where
+  //     the Lora modem received data has been written up to.
+  //   * Set RegFifoAddrPtr to RegFifoRxCurrentAddr. This sets the FIFO pointer
+  //     to the location of the last packet received in the FIFO. The payload
+  //     can then be extracted by reading the register RegFifo, RegRxNbBytes
+  //     times.
+  //   * Alternatively, it is possible to manually point to the location of the
+  //     last packet received, from the start of the current packet, by setting
+  //     RegFifoAddrPtr to RegFifoRxByteAddr minus RegRxNbBytes. The payload
+  //     bytes can then be read from the FIFO by reading the RegFifo address
+  //     RegRxNbBytes times.
+
   // clear IRQ's
   writeRegister(REG_IRQ_FLAGS, irqFlags);
 
   if ((irqFlags & IRQ_RX_DONE_MASK) &&
-      (irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0) {
+      ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0) /* &&
+      ((irqFlags & IRQ_RX_TIMEOUT_MASK) == 0) &&
+      ((irqFlags & IRQ_VALID_HEADER_MASK) == 1) */) {
     // received a packet
     _packetIndex = 0;
 
@@ -312,10 +387,11 @@ int LoRaClass::parsePacket(int size) {
       packetLength = readRegister(REG_RX_NB_BYTES);
     }
 
-    // set FIFO address to current RX address
+    // set FIFO address to current RX address, see above notes
     writeRegister(REG_FIFO_ADDR_PTR, readRegister(REG_FIFO_RX_CURRENT_ADDR));
 
     // put in standby mode
+    // Should already be in standby mode.
     idle();
   } else if (/* readRegister(REG_OP_MODE) !=
              (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE) */
@@ -550,6 +626,8 @@ void LoRaClass::receive(int size) {
 void LoRaClass::singleReceive() {
   // reset FIFO address
   writeRegister(REG_FIFO_ADDR_PTR, 0);
+
+  // Clear IRQ's
 
   // put in single RX mode
   setMode(DeviceMode::RXSINGLE);
