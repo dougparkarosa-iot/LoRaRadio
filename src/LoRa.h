@@ -36,6 +36,11 @@
 #define PA_OUTPUT_RFO_PIN 0
 #define PA_OUTPUT_PA_BOOST_PIN 1
 
+/// \brief Cloned LoRaClass from Sandeep Mistry
+///
+/// Clone is here to allow changes as needed.
+///
+/// Callback structure uses std::function.
 class LoRaClass : public Stream {
 public:
 #if USE_LORA_FUNCTIONAL_CALLBACK
@@ -66,30 +71,46 @@ public:
     CAD           ///< Channel activity detection
   };
 
+  /// Constructor
   LoRaClass();
 
+  /// Connect to LoRa hardware using the input frequency
+  ///
+  /// \param frequency Frequency One of (433000000L, 868000000L, 915000000L).
+  ///
+  /// \return 1 if successful 0 otherwise
   int begin(long frequency);
+
   void end();
 
   int beginPacket(int implicitHeader = false);
+
   int endPacket(bool async = false);
 
   int parsePacket(int size = 0);
   int packetRssi();
+
   float packetSnr();
+
   long packetFrequencyError();
 
   int rssi();
 
   // from Print
+
   virtual size_t write(uint8_t byte);
+
   virtual size_t write(const uint8_t *buffer, size_t size);
 
   // from Stream
-  virtual int available();
-  virtual int read();
-  virtual int peek();
-  virtual void flush();
+
+  int available() override;
+
+  int read() override;
+
+  int peek() override;
+
+  void flush() override;
 
 #ifndef ARDUINO_SAMD_MKRWAN1300
   void onReceive(RxFunction callback);
@@ -100,30 +121,64 @@ public:
 
   void setMode(DeviceMode mode);
   DeviceMode getMode();
+  void singleReceive();
 
   void idle();
+
   void sleep();
 
   void setTxPower(int level, int outputPin = PA_OUTPUT_PA_BOOST_PIN);
+
   void setFrequency(long frequency);
+
+  long getFrequency();
+
   void setSpreadingFactor(int sf);
+
   void setSignalBandwidth(long sbw);
+
   void setCodingRate4(int denominator);
+
   void setPreambleLength(long length);
+
   void setSyncWord(int sw);
+
+  /// @{
+  /// Enable or disable CRC usage, by default a CRC is not used.
+  /// \code
+  /// LoRa.enableCrc();
+  ///
+  /// LoRa.disableCrc();
+  /// \endcode
   void enableCrc();
   void disableCrc();
+  /// @}
+
+  /// @{
+  /// Enable or disable Invert the LoRa “in-phase” and “quadrature” (I and Q)
+  /// signals, by default a invertIQ is not used.
+  ///
+  /// \code
+  /// LoRa.enableInvertIQ();
+  ///
+  /// LoRa.disableInvertIQ();
+  /// \endcode
   void enableInvertIQ();
   void disableInvertIQ();
+  /// @}
+
+  void detectChannelActivity(void);
 
   void setOCP(uint8_t mA); // Over Current Protection control
 
   void setGain(uint8_t gain); // Set LNA gain
 
-  // deprecated
-  void crc() { enableCrc(); }
-  void noCrc() { disableCrc(); }
-
+  /// Generate a random byte, based on the Wideband RSSI measurement.
+  ///
+  /// \code
+  /// byte b = LoRa.random();
+  /// \endcode
+  /// \return random byte.
   byte random();
 
   void setPins(int ss = LORA_DEFAULT_SS_PIN, int reset = LORA_DEFAULT_RESET_PIN,
@@ -136,6 +191,7 @@ public:
   bool isTransmitting();
 
 private:
+  void errataCheck();
   void explicitHeaderMode();
   void implicitHeaderMode();
 
