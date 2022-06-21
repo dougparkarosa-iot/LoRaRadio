@@ -279,7 +279,9 @@ bool LoRaClass::isTransmitting() {
 /// Check to see if in Receive (RX) mode
 /// \return true if in RX mode false otherwise.
 bool LoRaClass::isInRXMode() {
-  return readRegister(REG_OP_MODE) == (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE);
+  // return readRegister(REG_OP_MODE) == (MODE_LONG_RANGE_MODE |
+  // MODE_RX_SINGLE);
+  return getMode() == DeviceMode::RXSINGLE;
 }
 
 /// Check if a packet has been received.
@@ -600,7 +602,7 @@ void LoRaClass::onFhssChange(FhssChangeFunction callback) {
 /// \endcode
 void LoRaClass::detectChannelActivity(void) {
   writeRegister(REG_DIO_MAPPING_1, DIO0_CAD_DONE); // DIO0 => CADDONE
-  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_CAD);
+  setMode(DeviceMode::CAD);
 }
 #endif // ARDUINO_SAMD_MKRWAN1300
 
@@ -632,9 +634,10 @@ void LoRaClass::singleReceive() {
   writeRegister(REG_FIFO_ADDR_PTR, 0);
 
   // put in single RX mode
-  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_SINGLE);
-  // Mode changes take a few micro seconds.
-  delay(1);
+  setMode(DeviceMode::RXSINGLE);
+  // writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_SINGLE);
+  //  Mode changes take a few micro seconds.
+  // delay(1);
 }
 
 /// Put the radio in idle (standby) mode.
