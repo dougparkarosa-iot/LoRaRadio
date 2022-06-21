@@ -8,6 +8,11 @@
 #include <Arduino.h>
 #include <SPI.h>
 
+#define USE_LORA_FUNCTIONAL_CALLBACK 0
+#if USE_LORA_FUNCTIONAL_CALLBACK
+#include <functional>
+#endif
+
 #if defined(ARDUINO_SAMD_MKRWAN1300)
 #define LORA_DEFAULT_SPI SPI1
 #define LORA_DEFAULT_SPI_FREQUENCY 200000
@@ -33,6 +38,22 @@
 
 class LoRaClass : public Stream {
 public:
+#if USE_LORA_FUNCTIONAL_CALLBACK
+  using RxFunction = std::function<void(int)>; ///< Callback type for receive
+                                               ///< argument is packetSize
+  using TxFunction = std::function<void()>;    ///< Callback type for transmit
+  using CadFunction = std::function<void(
+      boolean)>; ///< Callback type for Channel Activity Detect (CAD)
+  using FhssChangeFunction =
+      std::function<void()>; ///< Callback type for FhssChange
+#else
+  using RxFunction = void (*)(int); ///< Callback type for receive
+  using TxFunction = void (*)();    ///< Callback type for transmit
+  using CadFunction =
+      void (*)(boolean); ///< Callback type for Channel Activity Detect (CAD)
+  using FhssChangeFunction = void (*)(); ///< Callback type for FhssChange
+#endif
+
   LoRaClass();
 
   int begin(long frequency);
@@ -59,8 +80,8 @@ public:
   virtual void flush();
 
 #ifndef ARDUINO_SAMD_MKRWAN1300
-  void onReceive(void (*callback)(int));
-  void onTxDone(void (*callback)());
+  void onReceive(RxFunction callback);
+  void onTxDone(TxFunction callback);
 
   void receive(int size = 0);
 #endif
@@ -124,8 +145,8 @@ private:
   long _frequency;
   int _packetIndex;
   int _implicitHeaderMode;
-  void (*_onReceive)(int);
-  void (*_onTxDone)();
+  RxFunction _onReceive;
+  TxFunction _onTxDone;
 };
 
 extern LoRaClass LoRa;

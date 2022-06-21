@@ -346,7 +346,7 @@ int LoRaClass::peek() {
 void LoRaClass::flush() {}
 
 #ifndef ARDUINO_SAMD_MKRWAN1300
-void LoRaClass::onReceive(void (*callback)(int)) {
+void LoRaClass::onReceive(RxFunction callback) {
   _onReceive = callback;
 
   if (callback) {
@@ -364,7 +364,7 @@ void LoRaClass::onReceive(void (*callback)(int)) {
   }
 }
 
-void LoRaClass::onTxDone(void (*callback)()) {
+void LoRaClass::onTxDone(TxFunction callback) {
   _onTxDone = callback;
 
   if (callback) {
