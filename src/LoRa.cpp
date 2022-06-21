@@ -413,7 +413,8 @@ void LoRaClass::receive(int size) {
     explicitHeaderMode();
   }
 
-  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_CONTINUOUS);
+  //writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_CONTINUOUS);
+  setMode(DeviceMode::RXCONTINUOUS);
 }
 #endif
 
