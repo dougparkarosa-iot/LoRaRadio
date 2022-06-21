@@ -48,6 +48,8 @@
 #define MODE_TX 0x03
 #define MODE_RX_CONTINUOUS 0x05
 #define MODE_RX_SINGLE 0x06
+#define MODE_CAD 0x07
+#define MODE_MASK 0x07
 
 // PA config
 #define PA_BOOST 0x80
@@ -193,6 +195,20 @@ int LoRaClass::endPacket(bool async) {
   }
 
   return 1;
+}
+
+/// Set current device mode
+/// \param mode Mode to select
+void LoRaClass::setMode(DeviceMode mode) {
+  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | mode);
+  // Mode change takes a few micro seconds.
+  // delay(1);
+}
+
+/// Get current device mode
+/// \return the current device mode.
+LoRaClass::DeviceMode LoRaClass::getMode() {
+  return static_cast<DeviceMode>(readRegister(REG_OP_MODE) & MODE_MASK);
 }
 
 bool LoRaClass::isTransmitting() {

@@ -54,6 +54,18 @@ public:
   using FhssChangeFunction = void (*)(); ///< Callback type for FhssChange
 #endif
 
+  /// Device modes
+  enum DeviceMode {
+    SLEEP,        ///< Sleep (low power) mode
+    STDBY,        ///< Standby mode
+    FSTX,         ///< Frequency synthesis TX
+    TX,           ///< Transmit
+    FSRX,         ///< Frequency synthesis RX
+    RXCONTINUOUS, ///< Receive continuous
+    RXSINGLE,     ///< Receive single
+    CAD           ///< Channel activity detection
+  };
+
   LoRaClass();
 
   int begin(long frequency);
@@ -85,6 +97,10 @@ public:
 
   void receive(int size = 0);
 #endif
+
+  void setMode(DeviceMode mode);
+  DeviceMode getMode();
+
   void idle();
   void sleep();
 
