@@ -8,11 +8,6 @@
 #include <Arduino.h>
 #include <SPI.h>
 
-#define USE_FUNCTIONAL 1
-#if USE_FUNCTIONAL
-#include <functional>
-#endif
-
 #if defined(ARDUINO_SAMD_MKRWAN1300)
 #define LORA_DEFAULT_SPI SPI1
 #define LORA_DEFAULT_SPI_FREQUENCY 200000
@@ -36,153 +31,62 @@
 #define PA_OUTPUT_RFO_PIN 0
 #define PA_OUTPUT_PA_BOOST_PIN 1
 
-/// \brief Cloned LoRaClass from Sandeep Mistry
-///
-/// Clone is here to allow changes as needed.
-///
-/// Callback structure uses std::function.
 class LoRaClass : public Stream {
 public:
-#if USE_FUNCTIONAL
-  using RxFunction = std::function<void(int)>; ///< Callback type for receive
-                                               ///< argument is packetSize
-  using TxFunction = std::function<void()>;    ///< Callback type for transmit
-  using CadFunction = std::function<void(
-      boolean)>; ///< Callback type for Channel Activity Detect (CAD)
-  using FhssChangeFunction =
-      std::function<void()>; ///< Callback type for FhssChange
-#else
-  using RxFunction = void (*)(int); ///< Callback type for receive
-  using TxFunction = void (*)();    ///< Callback type for transmit
-  using CadFunction =
-      void (*)(boolean); ///< Callback type for Channel Activity Detect (CAD)
-  using FhssChangeFunction = void (*)(); ///< Callback type for FhssChange
-#endif
-
-  /// Device modes
-  enum DeviceMode {
-    SLEEP,        ///< Sleep (low power) mode
-    STDBY,        ///< Standby mode
-    FSTX,         ///< Frequency synthesis TX
-    TX,           ///< Transmit
-    FSRX,         ///< Frequency synthesis RX
-    RXCONTINUOUS, ///< Receive continuous
-    RXSINGLE,     ///< Receive single
-    CAD           ///< Channel activity detection
-  };
-
-  /// Constructor
   LoRaClass();
 
-  /// Connect to LoRa hardware using the input frequency
-  ///
-  /// \param frequency Frequency One of (433000000L, 868000000L, 915000000L).
-  ///
-  /// \return 1 if successful 0 otherwise
   int begin(long frequency);
-
   void end();
 
   int beginPacket(int implicitHeader = false);
-
   int endPacket(bool async = false);
+
   int parsePacket(int size = 0);
-
   int packetRssi();
-
   float packetSnr();
-
   long packetFrequencyError();
 
   int rssi();
 
   // from Print
-
   virtual size_t write(uint8_t byte);
-
   virtual size_t write(const uint8_t *buffer, size_t size);
 
   // from Stream
-
-  int available() override;
-
-  int read() override;
-
-  int peek() override;
-
-  void flush() override;
+  virtual int available();
+  virtual int read();
+  virtual int peek();
+  virtual void flush();
 
 #ifndef ARDUINO_SAMD_MKRWAN1300
-  void onReceive(RxFunction callback);
-  void onTxDone(TxFunction callback);
-  void onCadDone(CadFunction callback);
-
-  void onFhssChange(FhssChangeFunction callback);
-#endif
-
-  void setMode(DeviceMode mode);
-  DeviceMode getMode() const;
+  void onReceive(void (*callback)(int));
+  void onTxDone(void (*callback)());
 
   void receive(int size = 0);
-  void singleReceive();
-
+#endif
   void idle();
-
   void sleep();
-  bool isAsleep();
 
   void setTxPower(int level, int outputPin = PA_OUTPUT_PA_BOOST_PIN);
-
   void setFrequency(long frequency);
-
-  long getFrequency() const;
-
   void setSpreadingFactor(int sf);
-
   void setSignalBandwidth(long sbw);
-
   void setCodingRate4(int denominator);
-
   void setPreambleLength(long length);
-
   void setSyncWord(int sw);
-
-  /// @{
-  /// Enable or disable CRC usage, by default a CRC is not used.
-  /// \code
-  /// LoRa.enableCrc();
-  ///
-  /// LoRa.disableCrc();
-  /// \endcode
   void enableCrc();
   void disableCrc();
-  /// @}
-
-  /// @{
-  /// Enable or disable Invert the LoRa “in-phase” and “quadrature” (I and Q)
-  /// signals, by default a invertIQ is not used.
-  ///
-  /// \code
-  /// LoRa.enableInvertIQ();
-  ///
-  /// LoRa.disableInvertIQ();
-  /// \endcode
   void enableInvertIQ();
   void disableInvertIQ();
-  /// @}
-
-  void detectChannelActivity(void);
 
   void setOCP(uint8_t mA); // Over Current Protection control
 
   void setGain(uint8_t gain); // Set LNA gain
 
-  /// Generate a random byte, based on the Wideband RSSI measurement.
-  ///
-  /// \code
-  /// byte b = LoRa.random();
-  /// \endcode
-  /// \return random byte.
+  // deprecated
+  void crc() { enableCrc(); }
+  void noCrc() { disableCrc(); }
+
   byte random();
 
   void setPins(int ss = LORA_DEFAULT_SS_PIN, int reset = LORA_DEFAULT_RESET_PIN,
@@ -191,12 +95,10 @@ public:
   void setSPIFrequency(uint32_t frequency);
 
   void dumpRegisters(Stream &out);
+
   bool isTransmitting();
-  bool isInRXMode();
-  bool isIdle();
 
 private:
-  void errataCheck();
   void explicitHeaderMode();
   void implicitHeaderMode();
 
@@ -207,9 +109,9 @@ private:
 
   void setLdoFlag();
 
-  uint8_t readRegister(uint8_t address) const;
+  uint8_t readRegister(uint8_t address);
   void writeRegister(uint8_t address, uint8_t value);
-  uint8_t singleTransfer(uint8_t address, uint8_t value) const;
+  uint8_t singleTransfer(uint8_t address, uint8_t value);
 
   static void onDio0Rise();
 
@@ -222,10 +124,8 @@ private:
   long _frequency;
   int _packetIndex;
   int _implicitHeaderMode;
-  RxFunction _onReceive;
-  TxFunction _onTxDone;
-  CadFunction _onCadDone;
-  FhssChangeFunction _onFhssChange;
+  void (*_onReceive)(int);
+  void (*_onTxDone)();
 };
 
 extern LoRaClass LoRa;
