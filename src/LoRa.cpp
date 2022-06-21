@@ -183,7 +183,8 @@ int LoRaClass::endPacket(bool async) {
     writeRegister(REG_DIO_MAPPING_1, 0x40); // DIO0 => TXDONE
 
   // put in TX mode
-  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_TX);
+  // writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_TX);
+  setMode(DeviceMode::TX);
 
   if (!async) {
     // wait for TX done
@@ -256,16 +257,18 @@ int LoRaClass::parsePacket(int size) {
 
     // put in standby mode
     idle();
-  } else if (readRegister(REG_OP_MODE) !=
-             (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE)) {
+  } else if (/* readRegister(REG_OP_MODE) !=
+             (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE) */
+             getMode() != DeviceMode::RXSINGLE) {
     // not currently in RX mode
 
     // reset FIFO address
     writeRegister(REG_FIFO_ADDR_PTR, 0);
 
     // put in single RX mode
-    writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_SINGLE);
-    delay(1);
+    // writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_SINGLE);
+    // delay(1);
+    setMode(DeviceMode::RXSINGLE);
   }
 
   return packetLength;
