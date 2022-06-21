@@ -8,7 +8,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 
-#define USE_LORA_FUNCTIONAL_CALLBACK 0
+#define USE_LORA_FUNCTIONAL_CALLBACK 1
 #if USE_LORA_FUNCTIONAL_CALLBACK
 #include <functional>
 #endif
