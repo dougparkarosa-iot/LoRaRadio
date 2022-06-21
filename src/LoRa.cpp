@@ -415,11 +415,13 @@ void LoRaClass::receive(int size) {
 #endif
 
 void LoRaClass::idle() {
-  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_STDBY);
+  // writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_STDBY);
+  setMode(DeviceMode::STDBY);
 }
 
 void LoRaClass::sleep() {
-  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_SLEEP);
+  // writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_SLEEP);
+  setMode(DeviceMode::SLEEP);
 }
 
 void LoRaClass::setTxPower(int level, int outputPin) {
