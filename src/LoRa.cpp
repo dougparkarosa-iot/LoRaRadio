@@ -326,6 +326,8 @@ bool LoRaClass::isTransmitting() {
 }
 
 /// Check if a packet has been received.
+/// If the LoRa radio is not already in single receive mode and there
+/// is not data to read single receive mode is entered. See singleReceive().s
 ///  \code
 ///  int packetSize = LoRa.parsePacket();
 ///  int packetSize = LoRa.parsePacket(size);
@@ -588,6 +590,9 @@ void LoRaClass::onReceive(RxFunction callback) {
   }
 }
 
+/// Register an interrupt callback function for when a packet transmit is done.
+///  \param callback callback function with signature void(int packetSize) to
+///  call when a packet is received.
 void LoRaClass::onTxDone(TxFunction callback) {
   _onTxDone = callback;
 
@@ -606,6 +611,11 @@ void LoRaClass::onTxDone(TxFunction callback) {
   }
 }
 
+/// Switch to continuous receive mode.
+///
+/// \param size Packet size for implicitHeader mode.
+/// will put the radio into implicit header mode when
+/// size is not zero. Default is zero which is for explicit header mode.
 void LoRaClass::receive(int size) {
 
   writeRegister(REG_DIO_MAPPING_1, 0x00); // DIO0 => RXDONE
@@ -623,6 +633,25 @@ void LoRaClass::receive(int size) {
 }
 #endif
 
+/// Put the LoRa radio into single receive mode.
+///
+/// \code
+///  LoRa.singleReceive();
+///  int packetSize = LoRa.parsePacket();
+///  if (packetSize) {
+///    // received a packet
+///    Serial.print("Received packet '");
+///
+///    // read packet
+///    while (LoRa.available()) {
+///      Serial.print((char)LoRa.read());
+///    }
+///
+///    // print RSSI of packet
+///    Serial.print("' with RSSI ");
+///    Serial.println(LoRa.packetRssi());
+///  }
+/// \endcode
 void LoRaClass::singleReceive() {
   // reset FIFO address
   writeRegister(REG_FIFO_ADDR_PTR, 0);
@@ -734,10 +763,19 @@ long LoRaClass::getFrequency() {
   return frf;
 }
 
+/// Get the current spreading factor
+/// \return the spreading factor.
 int LoRaClass::getSpreadingFactor() {
   return readRegister(REG_MODEM_CONFIG_2) >> 4;
 }
 
+/// Change the spreading factor of the radio.
+/// \code
+/// LoRa.setSpreadingFactor(spreadingFactor);
+/// \endcode
+/// \param sf spreading factor, defaults to 7
+/// Supported values are between 6 and 12. If a spreading factor of 6 is set,
+/// implicit header mode must be used to transmit and receive packets.
 void LoRaClass::setSpreadingFactor(int sf) {
   if (sf < 6) {
     sf = 6;
@@ -787,7 +825,14 @@ long LoRaClass::getSignalBandwidth() {
   return -1;
 }
 
-void LoRaClass::setSignalBandwidth(long sbw) {
+/// Change the signal bandwidth of the radio.
+/// \code
+/// LoRa.setSignalBandwidth(signalBandwidth);
+/// \endcode
+/// \param signalBandwidth signal bandwidth in Hz, defaults to 125000.
+/// Supported values are 7800, 10400, 15600, 20800, 31250, 41700, 62500, 125000,
+/// 250000, and 500000.
+void LoRaClass::setSignalBandwidth(long signalBandwidth) {
   int bw;
 
   if (sbw <= 7.8E3) {
@@ -940,6 +985,15 @@ void LoRaClass::setOCP(uint8_t mA) {
   writeRegister(REG_OCP, 0x20 | (0x1F & ocpTrim));
 }
 
+/// Set Low Noise Amplifier (LNA) Gain for better RX sensitivity, by default AGC
+/// (Automatic Gain Control) is used and LNA gain is not used.
+/// \code
+/// LoRa.setGain(gain);
+/// \endcode
+/// \param gain LNA gain. Supported values are
+/// between 0 and 6. If gain is 0, AGC will be enabled and LNA gain will not be
+/// used.Else if gain is from 1 to 6, AGC will be disabled and LNA gain will be
+/// used.
 void LoRaClass::setGain(uint8_t gain) {
   // check allowed range
   if (gain > 6) {
@@ -1082,6 +1136,10 @@ void LoRaClass::handleDio0Rise() {
   }
 }
 
+/// Read the value of a particular LoRa radio register.
+/// Useful for testing.
+/// \param address register to read.
+/// \return value of the register specified by address.
 uint8_t LoRaClass::readRegister(uint8_t address) {
   return singleTransfer(address & 0x7f, 0x00);
 }

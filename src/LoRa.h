@@ -138,7 +138,7 @@ public:
 
   void setSpreadingFactor(int sf);
 
-  void setSignalBandwidth(long sbw);
+  void setSignalBandwidth(long signalBandwidth);
 
   void setCodingRate4(int denominator);
 
@@ -169,8 +169,6 @@ public:
   void enableInvertIQ();
   void disableInvertIQ();
   /// @}
-
-  void detectChannelActivity(void);
 
   void setOCP(uint8_t mA); // Over Current Protection control
 
