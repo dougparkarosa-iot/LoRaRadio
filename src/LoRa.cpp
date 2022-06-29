@@ -829,10 +829,10 @@ long LoRaClass::getSignalBandwidth() {
 /// \code
 /// LoRa.setSignalBandwidth(signalBandwidth);
 /// \endcode
-/// \param signalBandwidth signal bandwidth in Hz, defaults to 125000.
+/// \param sbw signal bandwidth in Hz, defaults to 125000.
 /// Supported values are 7800, 10400, 15600, 20800, 31250, 41700, 62500, 125000,
 /// 250000, and 500000.
-void LoRaClass::setSignalBandwidth(long signalBandwidth) {
+void LoRaClass::setSignalBandwidth(long sbw) {
   int bw;
 
   if (sbw <= 7.8E3) {
