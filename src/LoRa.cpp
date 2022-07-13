@@ -81,6 +81,7 @@
 #define IRQ_CAD_DONE_MASK 0x04
 #define IRQ_FHSS_CHANGE_CH_MASK 0x02
 #define IRQ_CAD_DETECTED_MASK 0x01
+#define IRQ_CLEAR_MASK 0xff
 
 #define RF_MID_BAND_THRESHOLD 525E6
 #define RSSI_OFFSET_HF_PORT 157
@@ -657,6 +658,7 @@ void LoRaClass::singleReceive() {
   writeRegister(REG_FIFO_ADDR_PTR, 0);
 
   // Clear IRQ's
+  //writeRegister(REG_IRQ_FLAGS, IRQ_CLEAR_MASK);
 
   // put in single RX mode
   setMode(DeviceMode::RXSINGLE);

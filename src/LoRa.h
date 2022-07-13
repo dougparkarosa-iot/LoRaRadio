@@ -137,8 +137,10 @@ public:
   long getFrequency();
 
   void setSpreadingFactor(int sf);
+  int getSpreadingFactor();
 
   void setSignalBandwidth(long signalBandwidth);
+  long getSignalBandwidth();
 
   void setCodingRate4(int denominator);
 
@@ -198,9 +200,6 @@ private:
   void implicitHeaderMode();
 
   void handleDio0Rise();
-
-  int getSpreadingFactor();
-  long getSignalBandwidth();
 
   void setLdoFlag();
 
