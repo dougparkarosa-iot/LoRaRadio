@@ -240,7 +240,7 @@ int LoRaClass::beginPacket(int implicitHeader) {
 
   // put in standby mode
   // Must be in standby mode to write to FIFO buffer.
-  idle();
+  ensureConfigWritable();
 
   if (implicitHeader) {
     implicitHeaderMode();
@@ -654,11 +654,13 @@ void LoRaClass::receive(int size) {
 ///  }
 /// \endcode
 void LoRaClass::singleReceive() {
+  ensureConfigWritable();
+
   // reset FIFO address
   writeRegister(REG_FIFO_ADDR_PTR, 0);
 
   // Clear IRQ's
-  //writeRegister(REG_IRQ_FLAGS, IRQ_CLEAR_MASK);
+  // writeRegister(REG_IRQ_FLAGS, IRQ_CLEAR_MASK);
 
   // put in single RX mode
   setMode(DeviceMode::RXSINGLE);
@@ -997,13 +999,11 @@ void LoRaClass::setOCP(uint8_t mA) {
 /// used.Else if gain is from 1 to 6, AGC will be disabled and LNA gain will be
 /// used.
 void LoRaClass::setGain(uint8_t gain) {
+  ensureConfigWritable();
   // check allowed range
   if (gain > 6) {
     gain = 6;
   }
-
-  // set to standby
-  idle();
 
   // set gain
   if (gain == 0) {
@@ -1144,6 +1144,22 @@ void LoRaClass::handleDio0Rise() {
 /// \return value of the register specified by address.
 uint8_t LoRaClass::readRegister(uint8_t address) {
   return singleTransfer(address & 0x7f, 0x00);
+}
+
+bool LoRaClass::isSleepingOrStandby() {
+  auto mode = getMode();
+  return (mode == DeviceMode::SLEEP) || (mode == DeviceMode::STDBY);
+}
+
+// 4.1.2.1 Configuration registers should be written only in Sleep and Standby
+// Modes. Datasheet is not clear about which registers are configuration
+// registers.
+void LoRaClass::ensureConfigWritable() {
+  if (!isSleepingOrStandby()) {
+    setMode(DeviceMode::STDBY);
+  }
+
+  return;
 }
 
 void LoRaClass::writeRegister(uint8_t address, uint8_t value) {

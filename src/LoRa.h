@@ -124,7 +124,6 @@ public:
 
   void setMode(DeviceMode mode);
   DeviceMode getMode();
-  void singleReceive();
 
   void idle();
 
@@ -198,10 +197,14 @@ private:
   void errataCheck();
   void explicitHeaderMode();
   void implicitHeaderMode();
+  void singleReceive();
 
   void handleDio0Rise();
 
   void setLdoFlag();
+
+  bool isSleepingOrStandby();
+  void ensureConfigWritable();
 
   void writeRegister(uint8_t address, uint8_t value);
   uint8_t singleTransfer(uint8_t address, uint8_t value);
