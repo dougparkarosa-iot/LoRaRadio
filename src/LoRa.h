@@ -192,6 +192,7 @@ public:
   uint8_t readRegister(uint8_t address);
 
   bool isTransmitting();
+  bool isSleepingOrStandby();
 
 private:
   void errataCheck();
@@ -203,7 +204,6 @@ private:
 
   void setLdoFlag();
 
-  bool isSleepingOrStandby();
   void ensureConfigWritable();
 
   void writeRegister(uint8_t address, uint8_t value);
