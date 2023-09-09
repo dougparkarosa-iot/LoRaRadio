@@ -66,6 +66,7 @@
 #define MODE_RX_SINGLE 0x06
 #define MODE_CAD 0x07
 #define MODE_MASK 0x07
+#define MODE_CAD 0x07
 
 // PA config
 #define PA_BOOST 0x80
@@ -74,14 +75,9 @@
 #define IRQ_RX_TIMEOUT_MASK 0x80
 #define IRQ_RX_DONE_MASK 0x40
 #define IRQ_PAYLOAD_CRC_ERROR_MASK 0x20
-#define IRQ_VALID_HEADER_MASK 0x10
-#define IRQ_TX_DONE_MASK 0x08
-#define IRQ_PAYLOAD_CRC_ERROR_MASK 0x20
 #define IRQ_RX_DONE_MASK 0x40
 #define IRQ_CAD_DONE_MASK 0x04
-#define IRQ_FHSS_CHANGE_CH_MASK 0x02
 #define IRQ_CAD_DETECTED_MASK 0x01
-#define IRQ_CLEAR_MASK 0xff
 
 #define RF_MID_BAND_THRESHOLD 525E6
 #define RSSI_OFFSET_HF_PORT 157
@@ -100,7 +96,7 @@ LoRaClass::LoRaClass()
       _spi(&LORA_DEFAULT_SPI), _ss(LORA_DEFAULT_SS_PIN),
       _reset(LORA_DEFAULT_RESET_PIN), _dio0(LORA_DEFAULT_DIO0_PIN),
       _frequency(0), _packetIndex(0), _implicitHeaderMode(0), _onReceive(NULL),
-      _onTxDone(NULL) {
+      _onCadDone(NULL), _onTxDone(NULL) {
   // override Stream timeout value
   setTimeout(0);
 }
@@ -437,14 +433,14 @@ float LoRaClass::packetSnr() {
 /// \return the frequency error of the received packet in Hz.
 long LoRaClass::packetFrequencyError() {
   int32_t freqError = 0;
-  freqError = static_cast<int32_t>(readRegister(REG_FREQ_ERROR_MSB) & B111);
+  freqError = static_cast<int32_t>(readRegister(REG_FREQ_ERROR_MSB) & 0b111);
   freqError <<= 8L;
   freqError += static_cast<int32_t>(readRegister(REG_FREQ_ERROR_MID));
   freqError <<= 8L;
   freqError += static_cast<int32_t>(readRegister(REG_FREQ_ERROR_LSB));
 
-  if (readRegister(REG_FREQ_ERROR_MSB) & B1000) { // Sign bit is on
-    freqError -= 524288;                          // B1000'0000'0000'0000'0000
+  if (readRegister(REG_FREQ_ERROR_MSB) & 0b1000) { // Sign bit is on
+    freqError -= 524288;                           // 0b1000'0000'0000'0000'0000
   }
 
   const float fXtal = 32E6; // FXOSC: crystal oscillator (XTAL) frequency (2.5.
@@ -591,6 +587,42 @@ void LoRaClass::onReceive(RxFunction callback) {
   }
 }
 
+void LoRaClass::onCadDone(void (*callback)(boolean)) {
+  _onCadDone = callback;
+
+  if (callback) {
+    pinMode(_dio0, INPUT);
+#ifdef SPI_HAS_NOTUSINGINTERRUPT
+    SPI.usingInterrupt(digitalPinToInterrupt(_dio0));
+#endif
+    attachInterrupt(digitalPinToInterrupt(_dio0), LoRaClass::onDio0Rise,
+                    RISING);
+  } else {
+    detachInterrupt(digitalPinToInterrupt(_dio0));
+#ifdef SPI_HAS_NOTUSINGINTERRUPT
+    SPI.notUsingInterrupt(digitalPinToInterrupt(_dio0));
+#endif
+  }
+}
+
+void LoRaClass::onCadDone(void (*callback)(boolean)) {
+  _onCadDone = callback;
+
+  if (callback) {
+    pinMode(_dio0, INPUT);
+#ifdef SPI_HAS_NOTUSINGINTERRUPT
+    SPI.usingInterrupt(digitalPinToInterrupt(_dio0));
+#endif
+    attachInterrupt(digitalPinToInterrupt(_dio0), LoRaClass::onDio0Rise,
+                    RISING);
+  } else {
+    detachInterrupt(digitalPinToInterrupt(_dio0));
+#ifdef SPI_HAS_NOTUSINGINTERRUPT
+    SPI.notUsingInterrupt(digitalPinToInterrupt(_dio0));
+#endif
+  }
+}
+
 /// Register an interrupt callback function for when a packet transmit is done.
 ///  \param callback callback function with signature void(int packetSize) to
 ///  call when a packet is received.
@@ -631,6 +663,11 @@ void LoRaClass::receive(int size) {
 
   // writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_RX_CONTINUOUS);
   setMode(DeviceMode::RXCONTINUOUS);
+}
+
+void LoRaClass::channelActivityDetection(void) {
+  writeRegister(REG_DIO_MAPPING_1, 0x80); // DIO0 => CADDONE
+  writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_CAD);
 }
 #endif
 
@@ -1114,7 +1151,11 @@ void LoRaClass::handleDio0Rise() {
   // Writing a 1 clears the flag in the hardware.
   writeRegister(REG_IRQ_FLAGS, irqFlags);
 
-  if ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0) {
+  if ((irqFlags & IRQ_CAD_DONE_MASK) != 0) {
+    if (_onCadDone) {
+      _onCadDone((irqFlags & IRQ_CAD_DETECTED_MASK) != 0);
+    }
+  } else if ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0) {
 
     if ((irqFlags & IRQ_RX_DONE_MASK) != 0) {
       // received a packet
@@ -1169,14 +1210,12 @@ void LoRaClass::writeRegister(uint8_t address, uint8_t value) {
 uint8_t LoRaClass::singleTransfer(uint8_t address, uint8_t value) {
   uint8_t response;
 
-  digitalWrite(_ss, LOW);
-
   _spi->beginTransaction(_spiSettings);
+  digitalWrite(_ss, LOW);
   _spi->transfer(address);
   response = _spi->transfer(value);
-  _spi->endTransaction();
-
   digitalWrite(_ss, HIGH);
+  _spi->endTransaction();
 
   return response;
 }

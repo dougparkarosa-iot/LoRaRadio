@@ -117,9 +117,11 @@ public:
 
 #ifndef ARDUINO_SAMD_MKRWAN1300
   void onReceive(RxFunction callback);
+  void onCadDone(void (*callback)(boolean));
   void onTxDone(TxFunction callback);
 
   void receive(int size = 0);
+  void channelActivityDetection(void);
 #endif
 
   void setMode(DeviceMode mode);
@@ -221,6 +223,7 @@ private:
   int _packetIndex;
   int _implicitHeaderMode;
   RxFunction _onReceive;
+  void (*_onCadDone)(boolean);
   TxFunction _onTxDone;
 };
 
