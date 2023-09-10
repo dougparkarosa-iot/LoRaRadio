@@ -4,6 +4,17 @@
 
 #include <LoRa.h>
 
+#define USE_DEBUG_OUTPUT 0
+
+#if USE_DEBUG_OUTPUT
+#include <Ansi.h>
+#include <AnsiTermLogger.h>
+#include <PreserveStreamFlags.h>
+#include <TerminalOut.h>
+#include <iomanip>
+#include <iostream>
+#endif // USE_DEBUG_OUTPUT
+
 /// Notes:
 /// LNA - Low Noise Amplifier
 /// AGC - Automatic Gain Control
@@ -75,8 +86,10 @@
 #define IRQ_RX_TIMEOUT_MASK 0x80
 #define IRQ_RX_DONE_MASK 0x40
 #define IRQ_PAYLOAD_CRC_ERROR_MASK 0x20
-#define IRQ_RX_DONE_MASK 0x40
+#define IRQ_VALID_HEADER_MASK 0x10
 #define IRQ_CAD_DONE_MASK 0x04
+#define IRQ_TX_DONE_MASK 0x08
+#define IRQ_FhssChangeChannel_Mask 0x02
 #define IRQ_CAD_DETECTED_MASK 0x01
 
 #define RF_MID_BAND_THRESHOLD 525E6
@@ -95,8 +108,8 @@ LoRaClass::LoRaClass()
     : _spiSettings(LORA_DEFAULT_SPI_FREQUENCY, MSBFIRST, SPI_MODE0),
       _spi(&LORA_DEFAULT_SPI), _ss(LORA_DEFAULT_SS_PIN),
       _reset(LORA_DEFAULT_RESET_PIN), _dio0(LORA_DEFAULT_DIO0_PIN),
-      _frequency(0), _packetIndex(0), _implicitHeaderMode(0), _onReceive(NULL),
-      _onCadDone(NULL), _onTxDone(NULL) {
+      _frequency(0), _packetIndex(0), _implicitHeaderMode(0), _crcErrorCount(0),
+      _onReceive(NULL), _onCadDone(NULL), _onTxDone(NULL) {
   // override Stream timeout value
   setTimeout(0);
 }
@@ -337,6 +350,15 @@ int LoRaClass::parsePacket(int size) {
 
   // Pick up IRQ flags for later use.
   int irqFlags = readRegister(REG_IRQ_FLAGS);
+#if USE_DEBUG_OUTPUT
+  {
+    PreserveStreamFlags p(std::cout);
+    SBNPL::AnsiOut(kDebugLine)
+        << "irqFlags " << std::setw(4) << std::hex << std::showbase << irqFlags
+        << " SR: " << ((getMode() == DeviceMode::RXSINGLE) ? "T" : "F")
+        << " CRC: " << _crcErrorCount << std::flush;
+  }
+#endif // USE_DEBUG_OUTPUT
 
   if (size > 0) {
     implicitHeaderMode();
@@ -351,6 +373,8 @@ int LoRaClass::parsePacket(int size) {
   // ValidHeader, PayloadCrcError, RxDone and RxTimeout interrupts in the status
   // register RegIrqFlags are not asserted to ensure that packet reception has
   // terminated successfully (i.e. no flags should be set).
+  //
+  // Note: RxDone should be set. The above from the datasheet is imprecise.
   //
   // In case of errors the steps below should be skipped and the packet
   // discarded. In order to retrieve valid received data from
@@ -369,14 +393,21 @@ int LoRaClass::parsePacket(int size) {
   //     bytes can then be read from the FIFO by reading the RegFifo address
   //     RegRxNbBytes times.
 
-  // clear IRQ's
-  writeRegister(REG_IRQ_FLAGS, irqFlags);
+  if ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 1) {
+    _crcErrorCount++;
+  }
 
   if ((irqFlags & IRQ_RX_DONE_MASK) &&
-      ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0) /* &&
-      ((irqFlags & IRQ_RX_TIMEOUT_MASK) == 0) &&
-      ((irqFlags & IRQ_VALID_HEADER_MASK) == 1) */) {
+      ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0) &&
+      ((irqFlags & IRQ_RX_TIMEOUT_MASK) == 0) /*&&
+      ((irqFlags & IRQ_VALID_HEADER_MASK) == 1)*/ ) {
+
+    // clear IRQ's
+    writeRegister(REG_IRQ_FLAGS, irqFlags);
+#if USE_DEBUG_OUTPUT
     // received a packet
+    SBNPL::AnsiOut(kDebugLine + 1) << "Valid Packet Received" << std::endl;
+#endif // USE_DEBUG_OUTPUT
     _packetIndex = 0;
 
     // read packet length
@@ -395,7 +426,14 @@ int LoRaClass::parsePacket(int size) {
   } else if (/* readRegister(REG_OP_MODE) !=
              (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE) */
              getMode() != DeviceMode::RXSINGLE) {
+
+    // clear IRQ's
+    writeRegister(REG_IRQ_FLAGS, irqFlags);
+
     // not currently in RX mode
+#if USE_DEBUG_OUTPUT
+    SBNPL::AnsiOut(kDebugLine + 2) << "singleReceive" << std::endl;
+#endif // USE_DEBUG_OUTPUT
     singleReceive();
   }
 
@@ -587,25 +625,7 @@ void LoRaClass::onReceive(RxFunction callback) {
   }
 }
 
-void LoRaClass::onCadDone(void (*callback)(boolean)) {
-  _onCadDone = callback;
-
-  if (callback) {
-    pinMode(_dio0, INPUT);
-#ifdef SPI_HAS_NOTUSINGINTERRUPT
-    SPI.usingInterrupt(digitalPinToInterrupt(_dio0));
-#endif
-    attachInterrupt(digitalPinToInterrupt(_dio0), LoRaClass::onDio0Rise,
-                    RISING);
-  } else {
-    detachInterrupt(digitalPinToInterrupt(_dio0));
-#ifdef SPI_HAS_NOTUSINGINTERRUPT
-    SPI.notUsingInterrupt(digitalPinToInterrupt(_dio0));
-#endif
-  }
-}
-
-void LoRaClass::onCadDone(void (*callback)(boolean)) {
+void LoRaClass::onCadDone(CadFunction callback) {
   _onCadDone = callback;
 
   if (callback) {
@@ -651,7 +671,7 @@ void LoRaClass::onTxDone(TxFunction callback) {
 /// size is not zero. Default is zero which is for explicit header mode.
 void LoRaClass::receive(int size) {
 
-  writeRegister(REG_DIO_MAPPING_1, 0x00); // DIO0 => RXDONE
+  writeRegister(REG_DIO_MAPPING_1, DIO0_RX_DONE); // DIO0 => RXDONE
 
   if (size > 0) {
     implicitHeaderMode();
@@ -666,7 +686,7 @@ void LoRaClass::receive(int size) {
 }
 
 void LoRaClass::channelActivityDetection(void) {
-  writeRegister(REG_DIO_MAPPING_1, 0x80); // DIO0 => CADDONE
+  writeRegister(REG_DIO_MAPPING_1, DIO0_CAD_DONE); // DIO0 => CADDONE
   writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_CAD);
 }
 #endif
@@ -1146,6 +1166,10 @@ void LoRaClass::handleDio0Rise() {
   // IRQ_FHSS_CHANGE_CH_MASK
   // IRQ_CAD_DETECTED_MASK
   int irqFlags = readRegister(REG_IRQ_FLAGS);
+
+  if ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 1) {
+    _crcErrorCount++;
+  }
 
   // clear IRQ's
   // Writing a 1 clears the flag in the hardware.

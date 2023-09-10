@@ -117,7 +117,7 @@ public:
 
 #ifndef ARDUINO_SAMD_MKRWAN1300
   void onReceive(RxFunction callback);
-  void onCadDone(void (*callback)(boolean));
+  void onCadDone(CadFunction callback);
   void onTxDone(TxFunction callback);
 
   void receive(int size = 0);
@@ -196,6 +196,9 @@ public:
   bool isTransmitting();
   bool isSleepingOrStandby();
 
+  void resetCRCErrorCount() { _crcErrorCount = 0; }
+  int getCRCErrorCount() const { return _crcErrorCount; }
+
 private:
   void errataCheck();
   void explicitHeaderMode();
@@ -222,8 +225,9 @@ private:
   long _frequency;
   int _packetIndex;
   int _implicitHeaderMode;
+  int _crcErrorCount;
   RxFunction _onReceive;
-  void (*_onCadDone)(boolean);
+  CadFunction _onCadDone;
   TxFunction _onTxDone;
 };
 
