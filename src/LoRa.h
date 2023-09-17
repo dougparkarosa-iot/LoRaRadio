@@ -158,7 +158,14 @@ public:
   /// \endcode
   void enableCrc();
   void disableCrc();
+  bool isCRCOnPayload();
+  bool isCRCRequired();
+  void setRequireCRC(bool requireCrc = true);
   /// @}
+
+  /// Check to see if PLL lock timed out.
+  /// \retrun True if PLL timed out attempting TX, RX, or CAD.
+  bool isPLLTimeout();
 
   /// @{
   /// Enable or disable Invert the LoRa “in-phase” and “quadrature” (I and Q)
@@ -226,6 +233,7 @@ private:
   int _packetIndex;
   int _implicitHeaderMode;
   int _crcErrorCount;
+  bool _requireCRC;
   RxFunction _onReceive;
   CadFunction _onCadDone;
   TxFunction _onTxDone;

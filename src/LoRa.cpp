@@ -4,7 +4,7 @@
 
 #include <LoRa.h>
 
-#define USE_DEBUG_OUTPUT 0
+#define USE_DEBUG_OUTPUT 1
 
 #if USE_DEBUG_OUTPUT
 #include <Ansi.h>
@@ -38,6 +38,7 @@
 #define REG_PKT_SNR_VALUE 0x19
 #define REG_PKT_RSSI_VALUE 0x1a
 #define REG_RSSI_VALUE 0x1b
+#define REG_HOP_CHANNEL 0x1c
 #define REG_MODEM_CONFIG_1 0x1d
 #define REG_MODEM_CONFIG_2 0x1e
 #define REG_SYMB_TIMEOUT_MSG_MASK 0x3
@@ -61,6 +62,8 @@
 #define REG_VERSION 0x42
 #define REG_PA_DAC 0x4d
 #define REG_AGC_Thresh3L_F 0x64
+#define REG_IF_FREQ_1 0x30
+#define REG_IF_FREQ_2 0x2F
 
 // DIO0 mapping Bits 7-6 of REG_DIO_MAPPING_1.
 // Table 18
@@ -92,6 +95,10 @@
 #define IRQ_FhssChangeChannel_Mask 0x02
 #define IRQ_CAD_DETECTED_MASK 0x01
 
+#define CRC_ON_MASK 0x04
+#define CRC_ON_PAYLOAD_MASK 0x40
+#define PLL_TIMEOUT 0x80
+
 #define RF_MID_BAND_THRESHOLD 525E6
 #define RSSI_OFFSET_HF_PORT 157
 #define RSSI_OFFSET_LF_PORT 164
@@ -109,7 +116,7 @@ LoRaClass::LoRaClass()
       _spi(&LORA_DEFAULT_SPI), _ss(LORA_DEFAULT_SS_PIN),
       _reset(LORA_DEFAULT_RESET_PIN), _dio0(LORA_DEFAULT_DIO0_PIN),
       _frequency(0), _packetIndex(0), _implicitHeaderMode(0), _crcErrorCount(0),
-      _onReceive(NULL), _onCadDone(NULL), _onTxDone(NULL) {
+      _requireCRC(true), _onReceive(NULL), _onCadDone(NULL), _onTxDone(NULL) {
   // override Stream timeout value
   setTimeout(0);
 }
@@ -173,7 +180,7 @@ int LoRaClass::begin(long frequency) {
   writeRegister(REG_MODEM_CONFIG_3, 0x04);
 
   // set output power to 17 dBm
-  setTxPower(17);
+  setTxPower(17); // Tried 17
 
   // put in standby mode
   idle();
@@ -278,8 +285,16 @@ int LoRaClass::beginPacket(int implicitHeader) {
 int LoRaClass::endPacket(bool async) {
 
   if ((async) && (_onTxDone)) {
+    // Turn on TXDONE interrupt
     writeRegister(REG_DIO_MAPPING_1, DIO0_TX_DONE); // DIO0 => TXDONE
   }
+
+  if (_requireCRC) {
+    enableCrc();
+  } else {
+    disableCrc();
+  }
+
   // put in TX mode
   // writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_TX);
   setMode(DeviceMode::TX);
@@ -351,22 +366,14 @@ int LoRaClass::parsePacket(int size) {
   // Pick up IRQ flags for later use.
   int irqFlags = readRegister(REG_IRQ_FLAGS);
 #if USE_DEBUG_OUTPUT
-  {
+  if (irqFlags != 0 && irqFlags != 0x80) {
     PreserveStreamFlags p(std::cout);
     SBNPL::AnsiOut(kDebugLine)
         << "irqFlags " << std::setw(4) << std::hex << std::showbase << irqFlags
         << " SR: " << ((getMode() == DeviceMode::RXSINGLE) ? "T" : "F")
-        << " CRC: " << _crcErrorCount << std::flush;
+        << " CRC: " << std::dec << _crcErrorCount << std::flush;
   }
 #endif // USE_DEBUG_OUTPUT
-
-  if (size > 0) {
-    implicitHeaderMode();
-
-    writeRegister(REG_PAYLOAD_LENGTH, size & 0xff);
-  } else {
-    explicitHeaderMode();
-  }
 
   // From datasheet
   // In order to retrieve received data from FIFO the user must ensure that
@@ -393,14 +400,37 @@ int LoRaClass::parsePacket(int size) {
   //     bytes can then be read from the FIFO by reading the RegFifo address
   //     RegRxNbBytes times.
 
-  if ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 1) {
-    _crcErrorCount++;
+  // Pick up the things we want to know
+  const bool rx_done = (irqFlags & IRQ_RX_DONE_MASK) != 0;
+  const bool valid_header = (irqFlags & IRQ_VALID_HEADER_MASK) != 0;
+  const bool crc_error = (irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) != 0;
+  const bool timeout = (irqFlags & IRQ_RX_TIMEOUT_MASK) != 0;
+
+  // By observation this routine may be called several times after the
+  // VALID_HEADER is set. It is probably wrong to clear this before
+  // RX_DONE is set.
+
+  bool rejectAsCRCError = false;
+  if (rx_done) {
+    if (crc_error) {
+      _crcErrorCount++;
+      rejectAsCRCError = true;
+    } else {
+      if (_requireCRC && !isCRCOnPayload()) {
+        // Reject. Maybe phantom packet or not one we want.
+        // Count this as a crc error.
+        _crcErrorCount++;
+        rejectAsCRCError = true;
+      }
+    }
+#if USE_DEBUG_OUTPUT
+    SBNPL::AnsiOut(kDebugLine + 3)
+        << "CRC? " << (isCRCOnPayload() ? "Yes" : "No") << " Reject? "
+        << (rejectAsCRCError ? "Yes" : "No") << std::endl;
+#endif // USE_DEBUG_OUTPUT
   }
 
-  if ((irqFlags & IRQ_RX_DONE_MASK) &&
-      ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0) &&
-      ((irqFlags & IRQ_RX_TIMEOUT_MASK) == 0) /*&&
-      ((irqFlags & IRQ_VALID_HEADER_MASK) == 1)*/ ) {
+  if (rx_done && !rejectAsCRCError && !timeout && valid_header) {
 
     // clear IRQ's
     writeRegister(REG_IRQ_FLAGS, irqFlags);
@@ -423,17 +453,32 @@ int LoRaClass::parsePacket(int size) {
     // put in standby mode
     // Should already be in standby mode.
     idle();
-  } else if (/* readRegister(REG_OP_MODE) !=
-             (MODE_LONG_RANGE_MODE | MODE_RX_SINGLE) */
-             getMode() != DeviceMode::RXSINGLE) {
+  } else if (getMode() != DeviceMode::RXSINGLE) {
 
     // clear IRQ's
     writeRegister(REG_IRQ_FLAGS, irqFlags);
 
     // not currently in RX mode
 #if USE_DEBUG_OUTPUT
-    SBNPL::AnsiOut(kDebugLine + 2) << "singleReceive" << std::endl;
+    // SBNPL::AnsiOut(kDebugLine + 2) << "singleReceive" << std::endl;
 #endif // USE_DEBUG_OUTPUT
+
+    // Seems better to do this only when we are switching into single receive
+    if (size > 0) {
+      if (_requireCRC) {
+        enableCrc();
+      } else {
+        disableCrc();
+      }
+
+      implicitHeaderMode();
+
+      writeRegister(REG_PAYLOAD_LENGTH, size & 0xff);
+    } else {
+      disableCrc(); // Uses header to determine if CRC is to be checked.
+      explicitHeaderMode();
+    }
+
     singleReceive();
   }
 
@@ -674,10 +719,17 @@ void LoRaClass::receive(int size) {
   writeRegister(REG_DIO_MAPPING_1, DIO0_RX_DONE); // DIO0 => RXDONE
 
   if (size > 0) {
+    if (_requireCRC) {
+      enableCrc();
+    } else {
+      disableCrc();
+    }
+
     implicitHeaderMode();
 
     writeRegister(REG_PAYLOAD_LENGTH, size & 0xff);
   } else {
+    disableCrc(); // Uses header to tell if it is on or off.
     explicitHeaderMode();
   }
 
@@ -862,25 +914,25 @@ long LoRaClass::getSignalBandwidth() {
 
   switch (bw) {
   case 0:
-    return 7.8E3;
+    return 7800;
   case 1:
-    return 10.4E3;
+    return 10400;
   case 2:
-    return 15.6E3;
+    return 15600;
   case 3:
-    return 20.8E3;
+    return 20800;
   case 4:
-    return 31.25E3;
+    return 31250;
   case 5:
-    return 41.7E3;
+    return 41700;
   case 6:
-    return 62.5E3;
+    return 62500;
   case 7:
-    return 125E3;
+    return 125000;
   case 8:
-    return 250E3;
+    return 250000;
   case 9:
-    return 500E3;
+    return 500000;
   }
 
   return -1;
@@ -896,25 +948,25 @@ long LoRaClass::getSignalBandwidth() {
 void LoRaClass::setSignalBandwidth(long sbw) {
   int bw;
 
-  if (sbw <= 7.8E3) {
+  if (sbw <= 7800) {
     bw = 0;
-  } else if (sbw <= 10.4E3) {
+  } else if (sbw <= 10400) {
     bw = 1;
-  } else if (sbw <= 15.6E3) {
+  } else if (sbw <= 15600) {
     bw = 2;
-  } else if (sbw <= 20.8E3) {
+  } else if (sbw <= 20800) {
     bw = 3;
-  } else if (sbw <= 31.25E3) {
+  } else if (sbw <= 31250) {
     bw = 4;
-  } else if (sbw <= 41.7E3) {
+  } else if (sbw <= 41700) {
     bw = 5;
-  } else if (sbw <= 62.5E3) {
+  } else if (sbw <= 62500) {
     bw = 6;
-  } else if (sbw <= 125E3) {
+  } else if (sbw <= 125000) {
     bw = 7;
-  } else if (sbw <= 250E3) {
+  } else if (sbw <= 250000) {
     bw = 8;
-  } else /*if (sbw <= 250E3)*/ {
+  } else /*if (sbw <= 500000)*/ {
     bw = 9;
   }
 
@@ -939,13 +991,29 @@ void LoRaClass::errataCheck() {
   //  o Set LoRa register at address 0x36 to value 0x02 (by default 0x03)
   //  o Set LoRa register at address 0x3a to value 0x7F (by default 0x65)
   if (_frequency > 862E6 && _frequency < 1020E6) {
-    if (getSignalBandwidth() == 500E3) {
+    if (getSignalBandwidth() == 500000) {
       writeRegister(REG_HIGH_BW_OPTIMIZE_1, 0x02);
       writeRegister(REG_HIGH_BW_OPTIMIZE_2, 0x64);
     }
   } else if (_frequency > 410E6 && _frequency < 525E6) {
     writeRegister(REG_HIGH_BW_OPTIMIZE_1, 0x02);
     writeRegister(REG_HIGH_BW_OPTIMIZE_2, 0x7F);
+  }
+
+  // Errata 2.3 - receiver spurious reception of a LoRa signal
+  // This is incomplete based on errata. It doesn't hanlde bandwidths less than
+  // 62500.
+
+  // Should be in sleep or standby for this to work
+  auto bw = getSignalBandwidth();
+  auto rDetectOptimize = (readRegister(REG_DETECTION_OPTIMIZE) & 0x78) | 0x03;
+  if (bw < 500000) {
+    writeRegister(REG_DETECTION_OPTIMIZE, rDetectOptimize);
+    writeRegister(REG_IF_FREQ_2, 0x40);
+    writeRegister(REG_IF_FREQ_1, 0x00);
+    // writeRegister(REG_IF_FREQ_1, 0x40);
+  } else {
+    writeRegister(REG_DETECTION_OPTIMIZE, rDetectOptimize | 0x80);
   }
 #endif
 }
@@ -1005,12 +1073,26 @@ void LoRaClass::setPreambleLength(long length) {
 void LoRaClass::setSyncWord(int sw) { writeRegister(REG_SYNC_WORD, sw); }
 
 void LoRaClass::enableCrc() {
-  writeRegister(REG_MODEM_CONFIG_2, readRegister(REG_MODEM_CONFIG_2) | 0x04);
+  writeRegister(REG_MODEM_CONFIG_2,
+                readRegister(REG_MODEM_CONFIG_2) | CRC_ON_MASK);
 }
 
 void LoRaClass::disableCrc() {
-  writeRegister(REG_MODEM_CONFIG_2, readRegister(REG_MODEM_CONFIG_2) & 0xfb);
+  writeRegister(REG_MODEM_CONFIG_2,
+                readRegister(REG_MODEM_CONFIG_2) & ~CRC_ON_MASK);
 }
+
+bool LoRaClass::isCRCOnPayload() {
+  return readRegister(REG_HOP_CHANNEL | CRC_ON_PAYLOAD_MASK) != 0;
+}
+
+bool LoRaClass::isPLLTimeout() {
+  return readRegister(REG_HOP_CHANNEL | PLL_TIMEOUT) != 0;
+}
+
+bool LoRaClass::isCRCRequired() { return _requireCRC; }
+
+void LoRaClass::setRequireCRC(bool requireCrc) { _requireCRC = requireCrc; }
 
 void LoRaClass::enableInvertIQ() {
   writeRegister(REG_INVERTIQ, 0x66);
