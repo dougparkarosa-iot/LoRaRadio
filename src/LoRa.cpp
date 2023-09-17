@@ -4,7 +4,8 @@
 
 #include <LoRa.h>
 
-#define USE_DEBUG_OUTPUT 1
+#define USE_DEBUG_OUTPUT 0
+#define USE_ERRATTA_CHECK 0
 
 #if USE_DEBUG_OUTPUT
 #include <Ansi.h>
@@ -977,7 +978,7 @@ void LoRaClass::setSignalBandwidth(long sbw) {
 }
 
 void LoRaClass::errataCheck() {
-#if 0
+#if USE_ERRATTA_CHECK
   // Per errata Revision 1 - Sept 2013
   //
   // Devices SX1276, SX1277, and SX1278.
@@ -1015,7 +1016,7 @@ void LoRaClass::errataCheck() {
   } else {
     writeRegister(REG_DETECTION_OPTIMIZE, rDetectOptimize | 0x80);
   }
-#endif
+#endif // USE_ERRATTA_CHECK
 }
 
 void LoRaClass::setLdoFlag() {
@@ -1086,6 +1087,8 @@ bool LoRaClass::isCRCOnPayload() {
   return readRegister(REG_HOP_CHANNEL | CRC_ON_PAYLOAD_MASK) != 0;
 }
 
+/// Check to see if PLL timed out on TX, RX, or CAD
+/// \return true if timeout occured.
 bool LoRaClass::isPLLTimeout() {
   return readRegister(REG_HOP_CHANNEL | PLL_TIMEOUT) != 0;
 }
@@ -1095,6 +1098,10 @@ bool LoRaClass::isCRCRequired() { return _requireCRC; }
 void LoRaClass::setRequireCRC(bool requireCrc) { _requireCRC = requireCrc; }
 
 void LoRaClass::enableInvertIQ() {
+  // This seems wrong. Spec say's bit 6 for RX, 0 for TX, 1-5 is 0x13
+  // So this would be 0x40 | 0x13 -> 0x53
+  // The following discusses this problem with another library
+  // https://blog.devmobile.co.nz/tag/reginvertiq/
   writeRegister(REG_INVERTIQ, 0x66);
   writeRegister(REG_INVERTIQ2, 0x19);
 }
