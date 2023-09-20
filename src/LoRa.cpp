@@ -317,7 +317,7 @@ int LoRaClass::endPacket(bool async) {
 void LoRaClass::setMode(DeviceMode mode) {
   writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | mode);
   // Mode change takes a few micro seconds.
-  delay(1);
+  delay(2);
 }
 
 /// Get current device mode
