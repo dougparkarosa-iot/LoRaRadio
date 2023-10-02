@@ -8,6 +8,8 @@
 #include <Arduino.h>
 #include <SPI.h>
 
+#define USE_EXPERIMENTAL_CAD 0
+
 #define USE_LORA_FUNCTIONAL_CALLBACK 1
 #if USE_LORA_FUNCTIONAL_CALLBACK
 #include <functional>
@@ -167,6 +169,13 @@ public:
   /// \retrun True if PLL timed out attempting TX, RX, or CAD.
   bool isPLLTimeout();
 
+#if USE_EXPERIMENTAL_CAD
+  /// Check for channel activity.
+  /// Will wait until CAD is finished and return.
+  /// \return true if there is channel activity.
+  bool performCad();
+#endif // USE_EXPERIMENTAL_CAD
+
   /// @{
   /// Enable or disable Invert the LoRa “in-phase” and “quadrature” (I and Q)
   /// signals, by default a invertIQ is not used.
@@ -202,6 +211,9 @@ public:
 
   bool isTransmitting();
   bool isSleepingOrStandby();
+  bool isReceiveing();
+  bool isPacketReady();
+  bool isReciveTimeout();
 
   void resetCRCErrorCount() { _crcErrorCount = 0; }
   int getCRCErrorCount() const { return _crcErrorCount; }

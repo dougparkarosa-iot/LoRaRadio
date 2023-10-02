@@ -5,9 +5,12 @@
 #include <LoRa.h>
 
 #define USE_DEBUG_OUTPUT 0
+
+#define USE_DEBUG_CAD USE_EXPERIMENTAL_CAD
+
 #define USE_ERRATTA_CHECK 0
 
-#if USE_DEBUG_OUTPUT
+#if USE_DEBUG_OUTPUT || USE_DEBUG_CAD
 #include <Ansi.h>
 #include <AnsiTermLogger.h>
 #include <PreserveStreamFlags.h>
@@ -317,7 +320,7 @@ int LoRaClass::endPacket(bool async) {
 void LoRaClass::setMode(DeviceMode mode) {
   writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | mode);
   // Mode change takes a few micro seconds.
-  delay(2);
+  delay(1);
 }
 
 /// Get current device mode
@@ -332,7 +335,7 @@ bool LoRaClass::isTransmitting() {
   // When in TX mode transmission continues until done then
   // automatically drops to stand by mode after firing off
   // the TX Done interrupt.
-  if ((readRegister(REG_OP_MODE) & MODE_TX) == MODE_TX) {
+  if ((readRegister(REG_OP_MODE) & MODE_MASK) == MODE_TX) {
     return true;
   }
 
@@ -351,6 +354,30 @@ bool LoRaClass::isTransmitting() {
   return false;
 }
 
+bool LoRaClass::isReceiveing() {
+  auto mode = getMode();
+  return (mode == DeviceMode::RXCONTINUOUS || mode == DeviceMode::RXSINGLE);
+}
+
+bool LoRaClass::isPacketReady() {
+  int irqFlags = readRegister(REG_IRQ_FLAGS);
+
+  const bool rx_done = (irqFlags & IRQ_RX_DONE_MASK) != 0;
+  const bool valid_header = (irqFlags & IRQ_VALID_HEADER_MASK) != 0;
+  const bool crc_error = (irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) != 0;
+  const bool timeout = (irqFlags & IRQ_RX_TIMEOUT_MASK) != 0;
+
+  return rx_done && !crc_error && !timeout && valid_header;
+}
+
+bool LoRaClass::isReciveTimeout() {
+  int irqFlags = readRegister(REG_IRQ_FLAGS);
+
+  const bool timeout = (irqFlags & IRQ_RX_TIMEOUT_MASK) != 0;
+
+  return timeout;
+}
+
 /// Check if a packet has been received.
 /// If the LoRa radio is not already in single receive mode and there
 /// is not data to read single receive mode is entered. See singleReceive().s
@@ -367,7 +394,7 @@ int LoRaClass::parsePacket(int size) {
   // Pick up IRQ flags for later use.
   int irqFlags = readRegister(REG_IRQ_FLAGS);
 #if USE_DEBUG_OUTPUT
-  if (irqFlags != 0 && irqFlags != 0x80) {
+  if (true /*irqFlags != 0 && irqFlags != 0x80*/) {
     PreserveStreamFlags p(std::cout);
     SBNPL::AnsiOut(kDebugLine)
         << "irqFlags " << std::setw(4) << std::hex << std::showbase << irqFlags
@@ -378,28 +405,31 @@ int LoRaClass::parsePacket(int size) {
 
   // From datasheet
   // In order to retrieve received data from FIFO the user must ensure that
-  // ValidHeader, PayloadCrcError, RxDone and RxTimeout interrupts in the status
-  // register RegIrqFlags are not asserted to ensure that packet reception has
-  // terminated successfully (i.e. no flags should be set).
+  // ValidHeader, PayloadCrcError, RxDone and RxTimeout interrupts in the
+  // status register RegIrqFlags are not asserted to ensure that packet
+  // reception has terminated successfully (i.e. no flags should be set).
   //
   // Note: RxDone should be set. The above from the datasheet is imprecise.
   //
   // In case of errors the steps below should be skipped and the packet
   // discarded. In order to retrieve valid received data from
   // the FIFO the user must:
-  //   * RegRxNbBytes Indicates the number of bytes that have been received thus
+  //   * RegRxNbBytes Indicates the number of bytes that have been received
+  //   thus
   //     far.
   //   * RegFifoAddrPtr is a dynamic pointer that indicates precisely where
   //     the Lora modem received data has been written up to.
-  //   * Set RegFifoAddrPtr to RegFifoRxCurrentAddr. This sets the FIFO pointer
+  //   * Set RegFifoAddrPtr to RegFifoRxCurrentAddr. This sets the FIFO
+  //   pointer
   //     to the location of the last packet received in the FIFO. The payload
   //     can then be extracted by reading the register RegFifo, RegRxNbBytes
   //     times.
-  //   * Alternatively, it is possible to manually point to the location of the
-  //     last packet received, from the start of the current packet, by setting
-  //     RegFifoAddrPtr to RegFifoRxByteAddr minus RegRxNbBytes. The payload
-  //     bytes can then be read from the FIFO by reading the RegFifo address
-  //     RegRxNbBytes times.
+  //   * Alternatively, it is possible to manually point to the location of
+  //   the
+  //     last packet received, from the start of the current packet, by
+  //     setting RegFifoAddrPtr to RegFifoRxByteAddr minus RegRxNbBytes. The
+  //     payload bytes can then be read from the FIFO by reading the RegFifo
+  //     address RegRxNbBytes times.
 
   // Pick up the things we want to know
   const bool rx_done = (irqFlags & IRQ_RX_DONE_MASK) != 0;
@@ -461,7 +491,7 @@ int LoRaClass::parsePacket(int size) {
 
     // not currently in RX mode
 #if USE_DEBUG_OUTPUT
-    // SBNPL::AnsiOut(kDebugLine + 2) << "singleReceive" << std::endl;
+    SBNPL::AnsiOut(kDebugLine + 2) << "singleReceive" << std::endl;
 #endif // USE_DEBUG_OUTPUT
 
     // Seems better to do this only when we are switching into single receive
@@ -527,8 +557,8 @@ long LoRaClass::packetFrequencyError() {
     freqError -= 524288;                           // 0b1000'0000'0000'0000'0000
   }
 
-  const float fXtal = 32E6; // FXOSC: crystal oscillator (XTAL) frequency (2.5.
-                            // Chip Specification, p. 14)
+  const float fXtal = 32E6; // FXOSC: crystal oscillator (XTAL) frequency
+                            // (2.5. Chip Specification, p. 14)
   const float fError = ((static_cast<float>(freqError) * (1L << 24)) / fXtal) *
                        (getSignalBandwidth() / 500000.0f); // p. 37
 
@@ -689,7 +719,8 @@ void LoRaClass::onCadDone(CadFunction callback) {
   }
 }
 
-/// Register an interrupt callback function for when a packet transmit is done.
+/// Register an interrupt callback function for when a packet transmit is
+/// done.
 ///  \param callback callback function with signature void(int packetSize) to
 ///  call when a packet is received.
 void LoRaClass::onTxDone(TxFunction callback) {
@@ -742,6 +773,48 @@ void LoRaClass::channelActivityDetection(void) {
   writeRegister(REG_DIO_MAPPING_1, DIO0_CAD_DONE); // DIO0 => CADDONE
   writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_CAD);
 }
+
+#if USE_EXPERIMENTAL_CAD
+bool LoRaClass::performCad() {
+
+  bool callBackCalled = false;
+  bool callBackResult = false;
+  onCadDone([&callBackCalled, &callBackResult](boolean activity) {
+    callBackCalled = true;
+    callBackResult = activity;
+  });
+  channelActivityDetection();
+
+  // wait (2^SF + 32) / BW seconds
+  auto sf = getSpreadingFactor();
+  auto bw = getSignalBandwidth();
+  auto secsToWait = ((pow(2, sf) + 32) / bw);
+
+  while (!callBackCalled) {
+#if USE_DEBUG_CAD
+    std::cout << "performCad() waiting: " << secsToWait << "secs"
+              << " sf: " << sf << " bw: " << bw << std::endl;
+#endif // USE_DEBUG_CAD
+    delay(secsToWait * 1000);
+  }
+
+  int irqFlags = readRegister(REG_IRQ_FLAGS);
+
+  // clear IRQ's
+  // Writing a 1 clears the flag in the hardware.
+  writeRegister(REG_IRQ_FLAGS, irqFlags);
+
+  auto cadDone = (irqFlags & IRQ_CAD_DONE_MASK) != 0;
+  auto activityDetected = (irqFlags & IRQ_CAD_DETECTED_MASK) != 0;
+#if USE_DEBUG_CAD
+  std::cout << "Activity Detected: "
+            << (cadDone && activityDetected ? "yes" : "no")
+            << " cadDone: " << (cadDone && activityDetected ? "yes" : "no")
+            << std::endl;
+#endif // USE_DEBUG_CAD
+  return cadDone && activityDetected;
+}
+#endif // USE_EXPERIMENTAL_CAD
 #endif
 
 /// Put the LoRa radio into single receive mode.
@@ -944,8 +1017,8 @@ long LoRaClass::getSignalBandwidth() {
 /// LoRa.setSignalBandwidth(signalBandwidth);
 /// \endcode
 /// \param sbw signal bandwidth in Hz, defaults to 125000.
-/// Supported values are 7800, 10400, 15600, 20800, 31250, 41700, 62500, 125000,
-/// 250000, and 500000.
+/// Supported values are 7800, 10400, 15600, 20800, 31250, 41700, 62500,
+/// 125000, 250000, and 500000.
 void LoRaClass::setSignalBandwidth(long sbw) {
   int bw;
 
@@ -983,8 +1056,8 @@ void LoRaClass::errataCheck() {
   //
   // Devices SX1276, SX1277, and SX1278.
   //
-  // The following LoRa registers should be changed as described, for BW=500 kHz
-  // For carrier frequencies ranging from 862 to 1020 MHz
+  // The following LoRa registers should be changed as described, for BW=500
+  // kHz For carrier frequencies ranging from 862 to 1020 MHz
   //  o Set LoRa register at address 0x36 to value 0x02 (by default 0x03)
   //  o Set LoRa register at address 0x3a to value 0x64 (by default 0x65)
   //
@@ -1002,8 +1075,8 @@ void LoRaClass::errataCheck() {
   }
 
   // Errata 2.3 - receiver spurious reception of a LoRa signal
-  // This is incomplete based on errata. It doesn't hanlde bandwidths less than
-  // 62500.
+  // This is incomplete based on errata. It doesn't hanlde bandwidths less
+  // than 62500.
 
   // Should be in sleep or standby for this to work
   auto bw = getSignalBandwidth();
@@ -1135,15 +1208,14 @@ void LoRaClass::setOCP(uint8_t mA) {
   writeRegister(REG_OCP, 0x20 | (0x1F & ocpTrim));
 }
 
-/// Set Low Noise Amplifier (LNA) Gain for better RX sensitivity, by default AGC
-/// (Automatic Gain Control) is used and LNA gain is not used.
-/// \code
+/// Set Low Noise Amplifier (LNA) Gain for better RX sensitivity, by default
+/// AGC (Automatic Gain Control) is used and LNA gain is not used. \code
 /// LoRa.setGain(gain);
 /// \endcode
 /// \param gain LNA gain. Supported values are
-/// between 0 and 6. If gain is 0, AGC will be enabled and LNA gain will not be
-/// used.Else if gain is from 1 to 6, AGC will be disabled and LNA gain will be
-/// used.
+/// between 0 and 6. If gain is 0, AGC will be enabled and LNA gain will not
+/// be used.Else if gain is from 1 to 6, AGC will be disabled and LNA gain
+/// will be used.
 void LoRaClass::setGain(uint8_t gain) {
   ensureConfigWritable();
   // check allowed range
