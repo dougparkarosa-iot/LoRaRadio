@@ -211,9 +211,9 @@ public:
 
   bool isTransmitting();
   bool isSleepingOrStandby();
-  bool isReceiveing();
+  bool isReceiving();
   bool isPacketReady();
-  bool isReciveTimeout();
+  bool isReceiveTimeout();
 
   void resetCRCErrorCount() { _crcErrorCount = 0; }
   int getCRCErrorCount() const { return _crcErrorCount; }

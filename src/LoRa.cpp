@@ -354,7 +354,7 @@ bool LoRaClass::isTransmitting() {
   return false;
 }
 
-bool LoRaClass::isReceiveing() {
+bool LoRaClass::isReceiving() {
   auto mode = getMode();
   return (mode == DeviceMode::RXCONTINUOUS || mode == DeviceMode::RXSINGLE);
 }
@@ -370,7 +370,7 @@ bool LoRaClass::isPacketReady() {
   return rx_done && !crc_error && !timeout && valid_header;
 }
 
-bool LoRaClass::isReciveTimeout() {
+bool LoRaClass::isReceiveTimeout() {
   int irqFlags = readRegister(REG_IRQ_FLAGS);
 
   const bool timeout = (irqFlags & IRQ_RX_TIMEOUT_MASK) != 0;
