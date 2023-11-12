@@ -8,7 +8,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 
-#define USE_EXPERIMENTAL_CAD 0
+#define USE_EXPERIMENTAL_CAD 1
 
 #define USE_LORA_FUNCTIONAL_CALLBACK 1
 #if USE_LORA_FUNCTIONAL_CALLBACK
@@ -173,7 +173,7 @@ public:
   /// Check for channel activity.
   /// Will wait until CAD is finished and return.
   /// \return true if there is channel activity.
-  bool performCad();
+  bool isChannelActive();
 #endif // USE_EXPERIMENTAL_CAD
 
   /// @{

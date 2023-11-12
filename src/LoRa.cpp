@@ -775,27 +775,18 @@ void LoRaClass::channelActivityDetection(void) {
 }
 
 #if USE_EXPERIMENTAL_CAD
-bool LoRaClass::performCad() {
+bool LoRaClass::isChannelActive() {
 
-  bool callBackCalled = false;
-  bool callBackResult = false;
-  onCadDone([&callBackCalled, &callBackResult](boolean activity) {
-    callBackCalled = true;
-    callBackResult = activity;
+  bool cadDone = false;
+  bool channel_active = false;
+  onCadDone([&cadDone, &channel_active](boolean activity) {
+    cadDone = true;
+    channel_active = activity;
   });
   channelActivityDetection();
 
-  // wait (2^SF + 32) / BW seconds
-  auto sf = getSpreadingFactor();
-  auto bw = getSignalBandwidth();
-  auto secsToWait = ((pow(2, sf) + 32) / bw);
-
-  while (!callBackCalled) {
-#if USE_DEBUG_CAD
-    std::cout << "performCad() waiting: " << secsToWait << "secs"
-              << " sf: " << sf << " bw: " << bw << std::endl;
-#endif // USE_DEBUG_CAD
-    delay(secsToWait * 1000);
+  while (!cadDone) {
+    yield();
   }
 
   int irqFlags = readRegister(REG_IRQ_FLAGS);
@@ -804,15 +795,11 @@ bool LoRaClass::performCad() {
   // Writing a 1 clears the flag in the hardware.
   writeRegister(REG_IRQ_FLAGS, irqFlags);
 
-  auto cadDone = (irqFlags & IRQ_CAD_DONE_MASK) != 0;
-  auto activityDetected = (irqFlags & IRQ_CAD_DETECTED_MASK) != 0;
 #if USE_DEBUG_CAD
-  std::cout << "Activity Detected: "
-            << (cadDone && activityDetected ? "yes" : "no")
-            << " cadDone: " << (cadDone && activityDetected ? "yes" : "no")
-            << std::endl;
+  std::cout << "Activity Detected: " << (channel_active ? "yes" : "no")
+            << " cadDone: " << (cadDone ? "yes" : "no") << std::endl;
 #endif // USE_DEBUG_CAD
-  return cadDone && activityDetected;
+  return channel_active;
 }
 #endif // USE_EXPERIMENTAL_CAD
 #endif
@@ -1327,6 +1314,17 @@ void LoRaClass::handleDio0Rise() {
   // IRQ_FHSS_CHANGE_CH_MASK
   // IRQ_CAD_DETECTED_MASK
   int irqFlags = readRegister(REG_IRQ_FLAGS);
+
+#if USE_DEBUG_OUTPUT
+  if (false /*irqFlags != 0 && irqFlags != 0x80*/) {
+    PreserveStreamFlags p(std::cout);
+    SBNPL::AnsiOut(kDebugLine)
+        << Ansi::magenta << "irqFlags " << std::setw(4) << std::hex
+        << std::showbase << irqFlags
+        << " CAD: " << ((getMode() == DeviceMode::CAD) ? "T" : "F")
+        << Ansi::reset << std::flush;
+  }
+#endif // USE_DEBUG_OUTPUT
 
   if ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 1) {
     _crcErrorCount++;
