@@ -218,11 +218,12 @@ public:
   void resetCRCErrorCount() { _crcErrorCount = 0; }
   int getCRCErrorCount() const { return _crcErrorCount; }
 
+  void singleReceive();
+
 private:
   void errataCheck();
   void explicitHeaderMode();
   void implicitHeaderMode();
-  void singleReceive();
 
   void handleDio0Rise();
 
