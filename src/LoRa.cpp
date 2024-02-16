@@ -151,11 +151,22 @@ int LoRaClass::begin(long frequency) {
   if (_reset != -1) {
     pinMode(_reset, OUTPUT);
 
-    // perform reset
+// perform reset
+#if 0
     digitalWrite(_reset, LOW);
     delay(10);
     digitalWrite(_reset, HIGH);
     delay(10);
+#else
+    ESP_LOGE("", "LoRa _reset : %X", _reset);
+
+    digitalWrite(_reset, HIGH);
+    delay(200);
+    digitalWrite(_reset, LOW);
+    delay(200);
+    digitalWrite(_reset, HIGH);
+    delay(50);
+#endif
   }
 
   // start SPI
@@ -164,6 +175,8 @@ int LoRaClass::begin(long frequency) {
   // check version
   uint8_t version = readRegister(REG_VERSION);
   if (version != 0x12) {
+    ESP_LOGE("", "LoRa version : %X", version);
+    dumpRegisters(Serial);
     return 0;
   }
 
