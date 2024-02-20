@@ -790,6 +790,9 @@ void LoRaClass::channelActivityDetection(void) {
 #if USE_EXPERIMENTAL_CAD
 bool LoRaClass::isChannelActive() {
 
+#define USE_INTERRUPT 1
+
+#if USE_INTERRUPT
   bool cadDone = false;
   bool channel_active = false;
   onCadDone([&cadDone, &channel_active](boolean activity) {
@@ -798,15 +801,33 @@ bool LoRaClass::isChannelActive() {
   });
   channelActivityDetection();
 
+  int irqFlags = readRegister(REG_IRQ_FLAGS);
+
   while (!cadDone) {
     yield();
   }
 
+  // clear IRQ's
+  // Writing a 1 clears the flag in the hardware.
+  writeRegister(REG_IRQ_FLAGS, irqFlags);
+#else
+  bool cadDone = false;
+  bool channel_active = false;
+  channelActivityDetection();
+
+  while ((readRegister(REG_IRQ_FLAGS) & IRQ_CAD_DONE_MASK) == 0) {
+    yield(); // equivalent to vPortYield() on ESP32.
+  }
+
   int irqFlags = readRegister(REG_IRQ_FLAGS);
+
+  cadDone = true;
+  channel_active = (irqFlags & IRQ_CAD_DETECTED_MASK) != 0;
 
   // clear IRQ's
   // Writing a 1 clears the flag in the hardware.
   writeRegister(REG_IRQ_FLAGS, irqFlags);
+#endif // USE_INTERRUPT
 
 #if USE_DEBUG_CAD
   std::cout << "Activity Detected: " << (channel_active ? "yes" : "no")
