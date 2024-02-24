@@ -148,6 +148,7 @@ int LoRaClass::begin(long frequency) {
   // set SS high
   digitalWrite(_ss, HIGH);
 
+  debugLog(_reset);
   if (_reset != -1) {
     pinMode(_reset, OUTPUT);
 
@@ -158,7 +159,7 @@ int LoRaClass::begin(long frequency) {
     digitalWrite(_reset, HIGH);
     delay(10);
 #else
-    ESP_LOGE("", "LoRa _reset : %X", _reset);
+    debugMsg("Reset LoRa");
 
     digitalWrite(_reset, HIGH);
     delay(200);
@@ -175,7 +176,8 @@ int LoRaClass::begin(long frequency) {
   // check version
   uint8_t version = readRegister(REG_VERSION);
   if (version != 0x12) {
-    ESP_LOGE("", "LoRa version : %X", version);
+    Debug::out << "LoRa version = " << std::hex << std::showbase << (int) version
+               << std::endl;
     dumpRegisters(Serial);
     return 0;
   }
@@ -790,7 +792,7 @@ void LoRaClass::channelActivityDetection(void) {
 #if USE_EXPERIMENTAL_CAD
 bool LoRaClass::isChannelActive() {
 
-#define USE_INTERRUPT 1
+#define USE_INTERRUPT 0
 
 #if USE_INTERRUPT
   bool cadDone = false;
