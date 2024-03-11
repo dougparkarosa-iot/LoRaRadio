@@ -1362,7 +1362,7 @@ void LoRaClass::handleDio0Rise() {
   }
 #endif // USE_DEBUG_OUTPUT
 
-  if ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 1) {
+  if ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) != 0) {
     _crcErrorCount++;
   }
 
