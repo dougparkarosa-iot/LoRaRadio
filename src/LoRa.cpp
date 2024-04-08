@@ -153,7 +153,7 @@ int LoRaClass::begin(long frequency) {
     pinMode(_reset, OUTPUT);
 
 // perform reset
-#if 0
+#if 1
     digitalWrite(_reset, LOW);
     delay(10);
     digitalWrite(_reset, HIGH);
@@ -176,7 +176,7 @@ int LoRaClass::begin(long frequency) {
   // check version
   uint8_t version = readRegister(REG_VERSION);
   if (version != 0x12) {
-    Debug::out << "LoRa version = " << std::hex << std::showbase << (int) version
+    Debug::out << "LoRa version = " << std::hex << std::showbase << (int)version
                << std::endl;
     dumpRegisters(Serial);
     return 0;
