@@ -165,8 +165,6 @@ public:
   void setRequireCRC(bool requireCrc = true);
   /// @}
 
-  /// Check to see if PLL lock timed out.
-  /// \retrun True if PLL timed out attempting TX, RX, or CAD.
   bool isPLLTimeout();
 
 #if USE_EXPERIMENTAL_CAD
@@ -215,7 +213,19 @@ public:
   bool isPacketReady();
   bool isReceiveTimeout();
 
+  /**
+   * @brief Resets the CRC error count.
+   *
+   * This function resets the count of CRC errors to zero.
+   */
   void resetCRCErrorCount() { _crcErrorCount = 0; }
+  /**
+   * @brief Get the CRC error count.
+   *
+   * This function returns the number of CRC errors that have occurred.
+   *
+   * @return The number of CRC errors.
+   */
   int getCRCErrorCount() const { return _crcErrorCount; }
 
   void singleReceive();

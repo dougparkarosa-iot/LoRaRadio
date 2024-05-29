@@ -8,7 +8,7 @@
 
 #define USE_DEBUG_CAD USE_EXPERIMENTAL_CAD
 
-#define USE_ERRATTA_CHECK 0
+#define USE_ERRATA_CHECK 0
 
 #if USE_DEBUG_OUTPUT || USE_DEBUG_CAD
 #include <Ansi.h>
@@ -369,11 +369,22 @@ bool LoRaClass::isTransmitting() {
   return false;
 }
 
+/**
+ * @brief Checks if the LoRa device is currently receiving data.
+ *
+ * @return true if the LoRa device is in RXCONTINUOUS or RXSINGLE mode, false
+ * otherwise.
+ */
 bool LoRaClass::isReceiving() {
   auto mode = getMode();
   return (mode == DeviceMode::RXCONTINUOUS || mode == DeviceMode::RXSINGLE);
 }
 
+/**
+ * Checks if a packet is ready to be read.
+ *
+ * @return true if a packet is ready to be read, false otherwise.
+ */
 bool LoRaClass::isPacketReady() {
   int irqFlags = readRegister(REG_IRQ_FLAGS);
 
@@ -385,6 +396,11 @@ bool LoRaClass::isPacketReady() {
   return rx_done && !crc_error && !timeout && valid_header;
 }
 
+/**
+ * Checks if a receive timeout has occurred.
+ *
+ * @return true if a receive timeout has occurred, false otherwise.
+ */
 bool LoRaClass::isReceiveTimeout() {
   int irqFlags = readRegister(REG_IRQ_FLAGS);
 
@@ -716,6 +732,13 @@ void LoRaClass::onReceive(RxFunction callback) {
   }
 }
 
+/**
+ * Sets the callback function to be executed when the CAD (Channel Activity
+ * Detection) is done. This also sets the DIO0 pin to be an input and attaches
+ * an interrupt to it.
+ *
+ * @param callback The function to be called when the CAD is done.
+ */
 void LoRaClass::onCadDone(CadFunction callback) {
   _onCadDone = callback;
 
@@ -784,6 +807,13 @@ void LoRaClass::receive(int size) {
   setMode(DeviceMode::RXCONTINUOUS);
 }
 
+/**
+ * Enables channel activity detection (CAD) mode.
+ * This function configures the LoRa module to perform channel activity
+ * detection. It sets the DIO0 pin to trigger when CAD is done and sets the
+ * operating mode to long range mode with CAD enabled. After calling this
+ * function, the module will start detecting channel activity.
+ */
 void LoRaClass::channelActivityDetection(void) {
   writeRegister(REG_DIO_MAPPING_1, DIO0_CAD_DONE); // DIO0 => CADDONE
   writeRegister(REG_OP_MODE, MODE_LONG_RANGE_MODE | MODE_CAD);
@@ -1006,6 +1036,11 @@ void LoRaClass::setSpreadingFactor(int sf) {
   setLdoFlag();
 }
 
+/**
+ * Get the signal bandwidth setting.
+ *
+ * @return The signal bandwidth in Hz. Returns -1 if the bandwidth is not valid.
+ */
 long LoRaClass::getSignalBandwidth() {
   byte bw = (readRegister(REG_MODEM_CONFIG_1) >> 4);
 
@@ -1074,7 +1109,7 @@ void LoRaClass::setSignalBandwidth(long sbw) {
 }
 
 void LoRaClass::errataCheck() {
-#if USE_ERRATTA_CHECK
+#if USE_ERRATA_CHECK
   // Per errata Revision 1 - Sept 2013
   //
   // Devices SX1276, SX1277, and SX1278.
@@ -1098,7 +1133,7 @@ void LoRaClass::errataCheck() {
   }
 
   // Errata 2.3 - receiver spurious reception of a LoRa signal
-  // This is incomplete based on errata. It doesn't hanlde bandwidths less
+  // This is incomplete based on errata. It doesn't handle bandwidths less
   // than 62500.
 
   // Should be in sleep or standby for this to work
@@ -1112,7 +1147,7 @@ void LoRaClass::errataCheck() {
   } else {
     writeRegister(REG_DETECTION_OPTIMIZE, rDetectOptimize | 0x80);
   }
-#endif // USE_ERRATTA_CHECK
+#endif // USE_ERRATA_CHECK
 }
 
 void LoRaClass::setLdoFlag() {
@@ -1179,20 +1214,51 @@ void LoRaClass::disableCrc() {
                 readRegister(REG_MODEM_CONFIG_2) & ~CRC_ON_MASK);
 }
 
+/**
+ * @brief Checks if CRC (Cyclic Redundancy Check) is enabled for payload.
+ *
+ * This function reads the register to determine if CRC is enabled for payload.
+ *
+ * @return true if CRC is enabled for payload, false otherwise.
+ */
 bool LoRaClass::isCRCOnPayload() {
   return readRegister(REG_HOP_CHANNEL | CRC_ON_PAYLOAD_MASK) != 0;
 }
 
-/// Check to see if PLL timed out on TX, RX, or CAD
-/// \return true if timeout occured.
+/**
+ * @brief Checks if the PLL timeout has occurred on TX, RX, or CAD.
+ *
+ * @return true if the PLL timeout has occurred, false otherwise.
+ */
 bool LoRaClass::isPLLTimeout() {
   return readRegister(REG_HOP_CHANNEL | PLL_TIMEOUT) != 0;
 }
 
+/**
+ * @brief Get the CRC requirement status.
+ *
+ * @return true if CRC is required, false otherwise.
+ */
 bool LoRaClass::isCRCRequired() { return _requireCRC; }
 
+/**
+ * @brief Sets whether the LoRa radio requires CRC (Cyclic Redundancy Check) for
+ * received packets.
+ *
+ * @param requireCrc A boolean value indicating whether CRC is required.
+ */
 void LoRaClass::setRequireCRC(bool requireCrc) { _requireCRC = requireCrc; }
 
+/**
+ * Enables the inversion of IQ signals for LoRa communication.
+ * This function sets the appropriate registers to enable the inversion of IQ
+ * signals. The inversion is necessary for proper communication with certain
+ * LoRa devices.
+ *
+ * Note: The current implementation sets the registers to specific values (0x66
+ * and 0x19), which may not be suitable for all scenarios. Refer to the LoRa
+ * device's specification for the correct values to use.
+ */
 void LoRaClass::enableInvertIQ() {
   // This seems wrong. Spec say's bit 6 for RX, 0 for TX, 1-5 is 0x13
   // So this would be 0x40 | 0x13 -> 0x53
@@ -1406,6 +1472,11 @@ uint8_t LoRaClass::readRegister(uint8_t address) {
   return singleTransfer(address & 0x7f, 0x00);
 }
 
+/**
+ * Checks if the LoRa device is in sleep or standby mode.
+ *
+ * @return true if the LoRa device is in sleep or standby mode, false otherwise.
+ */
 bool LoRaClass::isSleepingOrStandby() {
   auto mode = getMode();
   return (mode == DeviceMode::SLEEP) || (mode == DeviceMode::STDBY);
