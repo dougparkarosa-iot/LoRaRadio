@@ -5,12 +5,15 @@
 #ifndef LORA_H
 #define LORA_H
 
+/// \file
+/// \brief LoRa radio driver.
+
 #include <Arduino.h>
 #include <SPI.h>
 
-#define USE_EXPERIMENTAL_CAD 1
+#define USE_EXPERIMENTAL_CAD 1 ///< Enable experimental CAD support
 
-#define USE_LORA_FUNCTIONAL_CALLBACK 1
+#define USE_LORA_FUNCTIONAL_CALLBACK 1 ///< Enable functional callback support
 #if USE_LORA_FUNCTIONAL_CALLBACK
 #include <functional>
 #endif
@@ -28,15 +31,15 @@
 #define LORA_DEFAULT_RESET_PIN -1
 #define LORA_DEFAULT_DIO0_PIN LORA_IRQ
 #else
-#define LORA_DEFAULT_SPI SPI
-#define LORA_DEFAULT_SPI_FREQUENCY 8E6
-#define LORA_DEFAULT_SS_PIN 10
-#define LORA_DEFAULT_RESET_PIN 9
-#define LORA_DEFAULT_DIO0_PIN 2
+#define LORA_DEFAULT_SPI SPI           ///< Default SPI
+#define LORA_DEFAULT_SPI_FREQUENCY 8E6 ///< Default SPI frequency
+#define LORA_DEFAULT_SS_PIN 10         ///< Default SS pin
+#define LORA_DEFAULT_RESET_PIN 9       ///< Default reset pin
+#define LORA_DEFAULT_DIO0_PIN 2        ///< Default DIO0 pin
 #endif
 
-#define PA_OUTPUT_RFO_PIN 0
-#define PA_OUTPUT_PA_BOOST_PIN 1
+#define PA_OUTPUT_RFO_PIN 0      ///< RFO output pin
+#define PA_OUTPUT_PA_BOOST_PIN 1 ///< PA Boost output pin
 
 /// \brief Cloned LoRaClass from Sandeep Mistry
 ///
@@ -262,6 +265,6 @@ private:
   TxFunction _onTxDone;
 };
 
-extern LoRaClass LoRa;
+extern LoRaClass LoRa; ///< LoRa radio driver instance
 
 #endif
